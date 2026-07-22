@@ -1,18 +1,21 @@
 """
-Meta-alerts Realtime Alerter — FASTEST FREE setup (sub-second capable)
+Meta-alerts Realtime Alerter — FASTEST FREE setup (~0.5-1.5 sec)
 
-Speed optimizations:
-  - Binance WebSocket push data (~250ms updates) — polling NAHI
-  - Config startup pe ek baar load (har alert pe file read NAHI)
-  - Telegram keep-alive session (TCP handshake har baar NAHI)
-  - "live" mode: candle ke andar har tick pe indicator check
+PRIVACY DESIGN:
+  - Aapka asli logic  my_logic.py  me hota hai → .gitignore me hai,
+    GitHub pe KABHI nahi jaata. Sirf aapke PC pe rehta hai.
+  - my_logic.py missing ho to example_logic.py (EMA cross demo) chalta hai.
 
-Realistic latency: exchange -> detect ~0.3-0.7s + Telegram ~0.3-0.8s
-                   = TOTAL ~0.5-1.5 sec  (paid TradingView se faster!)
+LOGIC FORMAT (my_logic.py me likhna hai):
+    def get_signal(closes, highs, lows, opens, volumes):
+        ...  # last element = latest candle
+        return "BUY" / "SELL" / None
 
-Run:
-    pip install -r requirements.txt
-    python realtime_alerter.py
+Speed: Binance WebSocket push (~250ms) + cached config +
+       Telegram keep-alive session + per-tick checks.
+
+Run:  pip install -r requirements.txt
+      python realtime_alerter.py
 """
 
 import json
@@ -29,14 +32,22 @@ logging.basicConfig(level=logging.INFO,
                     datefmt="%H:%M:%S")
 log = logging.getLogger("meta-alerts-rt")
 
-# ---- Config EK BAAR load (speed: har alert pe file read nahi) ----
+# ---- Aapka logic load karo (PRIVATE my_logic.py pehle, warna example) ----
+try:
+    from my_logic import get_signal  # aapki secret file (gitignored)
+    log.info("Loaded PRIVATE logic: my_logic.py")
+except ImportError:
+    from example_logic import get_signal
+    log.info("my_logic.py nahi mila -> example_logic.py (demo EMA cross) chal raha hai")
+
+# ---- Config ek baar load ----
 with open(Path(__file__).parent / "config.json", "r", encoding="utf-8") as _f:
     CFG = json.load(_f)
 TG = CFG.get("telegram", {})
 RT = CFG["realtime"]
 MODE = RT.get("mode", "live")
+HIST = RT.get("history_candles", 300)
 
-# ---- Telegram keep-alive session (connection reuse = fast) ----
 SESSION = requests.Session()
 
 
@@ -46,12 +57,12 @@ def send_telegram(text: str, t0: float) -> None:
         log.warning("Telegram config missing! Alert: %s", text)
         return
     try:
-        r = SESSION.post(
-            f"https://api.telegram.org/bot{token}/sendMessage",
-            json={"chat_id": chat_id, "text": text}, timeout=5)
-        log.info("Telegram delivered | total %.3fs | %s",
-                 time.time() - t0, text) if r.ok else log.error(
-                 "Telegram error: %s", r.text)
+        r = SESSION.post(f"https://api.telegram.org/bot{token}/sendMessage",
+                         json={"chat_id": chat_id, "text": text}, timeout=5)
+        if r.ok:
+            log.info("Telegram delivered | total %.3fs | %s", time.time() - t0, text)
+        else:
+            log.error("Telegram error: %s", r.text)
     except Exception as exc:
         log.error("Telegram send failed: %s", exc)
 
@@ -60,72 +71,65 @@ def fire_alert(symbol: str, side: str, price: float, t0: float) -> None:
     emoji = "🟢" if side == "BUY" else "🔴"
     msg = f"{emoji} {side} | {symbol} @ {price}"
     log.info("DETECT->fire %.3fs | %s", time.time() - t0, msg)
-    threading.Thread(target=send_telegram, args=(msg, t0),
-                     daemon=True).start()
+    threading.Thread(target=send_telegram, args=(msg, t0), daemon=True).start()
 
 
 class SymbolState:
-    """Ek symbol ka EMA state + cross detection (pure Python, ~microseconds)."""
+    """Rolling candle history + aapke get_signal() ko har tick call."""
 
-    def __init__(self, symbol: str, interval: str, fast: int, slow: int):
+    def __init__(self, symbol: str, interval: str):
         self.symbol = symbol
-        self.k_f, self.k_s = 2 / (fast + 1), 2 / (slow + 1)
-        self._seed(interval)
-        self.prev_diff = self.ema_f - self.ema_s
         self.alerted_candle = None
-
-    def _seed(self, interval: str) -> None:
         r = SESSION.get("https://api.binance.com/api/v3/klines",
-                        params={"symbol": self.symbol, "interval": interval,
-                                "limit": 250}, timeout=10)
-        closes = [float(k[4]) for k in r.json()]
-        self.ema_f = self.ema_s = closes[0]
-        for c in closes[1:]:
-            self.ema_f = c * self.k_f + self.ema_f * (1 - self.k_f)
-            self.ema_s = c * self.k_s + self.ema_s * (1 - self.k_s)
-        log.info("%s seeded | fast=%.4f slow=%.4f",
-                 self.symbol, self.ema_f, self.ema_s)
-
-    def _check(self, diff: float, price: float,
-               candle_ot: int, t0: float) -> None:
-        if candle_ot == self.alerted_candle:
-            return
-        if self.prev_diff <= 0 < diff:
-            fire_alert(self.symbol, "BUY", price, t0)
-            self.alerted_candle = candle_ot
-        elif self.prev_diff >= 0 > diff:
-            fire_alert(self.symbol, "SELL", price, t0)
-            self.alerted_candle = candle_ot
+                        params={"symbol": symbol, "interval": interval,
+                                "limit": HIST}, timeout=10)
+        kl = r.json()
+        self.o = [float(k[1]) for k in kl]
+        self.h = [float(k[2]) for k in kl]
+        self.l = [float(k[3]) for k in kl]
+        self.c = [float(k[4]) for k in kl]
+        self.v = [float(k[5]) for k in kl]
+        self.last_ot = int(kl[-1][0])  # last candle open time
+        log.info("%s seeded (%d candles)", symbol, len(self.c))
 
     def on_tick(self, k: dict, t0: float) -> None:
-        price = float(k["c"])
-        if k["x"]:  # candle CLOSE
-            self.ema_f = price * self.k_f + self.ema_f * (1 - self.k_f)
-            self.ema_s = price * self.k_s + self.ema_s * (1 - self.k_s)
-            diff = self.ema_f - self.ema_s
-            self._check(diff, price, k["t"], t0)
-            self.prev_diff = diff
-        elif MODE == "live":  # har tick pe — fastest!
-            hyp_f = price * self.k_f + self.ema_f * (1 - self.k_f)
-            hyp_s = price * self.k_s + self.ema_s * (1 - self.k_s)
-            self._check(hyp_f - hyp_s, price, k["t"], t0)
+        ot = int(k["t"])
+        o, h, l, c, v = (float(k["o"]), float(k["h"]), float(k["l"]),
+                         float(k["c"]), float(k["v"]))
+        if ot == self.last_ot:       # candle update (live ya final)
+            self.o[-1], self.h[-1], self.l[-1], self.c[-1], self.v[-1] = o, h, l, c, v
+        else:                         # nayi candle shuru
+            self.o.append(o); self.h.append(h); self.l.append(l)
+            self.c.append(c); self.v.append(v)
+            self.last_ot = ot
+            if len(self.c) > HIST * 2:  # memory trim
+                cut = len(self.c) - HIST
+                self.o, self.h, self.l, self.c, self.v = (
+                    self.o[cut:], self.h[cut:], self.l[cut:],
+                    self.c[cut:], self.v[cut:])
+
+        if MODE != "live" and not k["x"]:
+            return                    # "close" mode: sirf candle close pe check
+
+        sig = get_signal(self.c, self.h, self.l, self.o, self.v)
+        if sig in ("BUY", "SELL") and ot != self.alerted_candle:
+            self.alerted_candle = ot
+            fire_alert(self.symbol, sig, c, t0)
 
 
 def run() -> None:
     symbols = [s.upper() for s in RT["symbols"]]
     interval = RT.get("interval", "1m")
-    states = {s: SymbolState(s, interval, RT["fast_ema"], RT["slow_ema"])
-              for s in symbols}
+    states = {s: SymbolState(s, interval) for s in symbols}
     streams = "/".join(f"{s.lower()}@kline_{interval}" for s in symbols)
     url = f"wss://stream.binance.com:9443/stream?streams={streams}"
 
-    # Telegram connection pre-warm (pehla alert bhi fast rahe)
     threading.Thread(target=lambda: send_telegram(
         "✅ Meta-alerts LIVE | mode=%s | %s" % (MODE, ",".join(symbols)),
         time.time()), daemon=True).start()
 
     def on_message(_ws, message):
-        t0 = time.time()  # receive timestamp = latency ka start
+        t0 = time.time()
         try:
             d = json.loads(message)["data"]
             states[d["k"]["s"]].on_tick(d["k"], t0)
@@ -133,7 +137,7 @@ def run() -> None:
             log.error("msg error: %s", exc)
 
     log.info("START | symbols=%s interval=%s mode=%s", symbols, interval, MODE)
-    while True:  # auto-reconnect
+    while True:
         try:
             ws = websocket.WebSocketApp(
                 url, on_message=on_message,

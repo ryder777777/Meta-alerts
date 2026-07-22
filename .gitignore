@@ -4,5 +4,9 @@ __pycache__/
 venv/
 .env
 *.log
-# Secrets
+
+# ======== PRIVACY — yeh files kabhi GitHub pe NAHI jaayengi ========
+config.json          # aapke telegram tokens
 config.local.json
+my_logic.py          # AAPKA SECRET TRADING LOGIC
+# ==================================================================

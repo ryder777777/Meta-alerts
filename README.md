@@ -53,6 +53,24 @@ python main.py
 }
 ```
 
+## 🔒 Privacy Design (IMPORTANT)
+
+Aapka logic kabhi public nahi hota:
+
+| File | Kiske paas |
+|------|-----------|
+| `my_logic.py` | 🚫 **.gitignore me** — sirf aapke PC pe, GitHub pe kabhi nahi |
+| `config.json` | 🚫 **.gitignore me** — tokens safe |
+| `example_logic.py` | ✅ Public demo (fake EMA cross) |
+| `indicators.py` | ✅ Public helpers (ema, rsi, macd, supertrend...) |
+
+**Apna secret logic lagane ke liye:**
+```bash
+cp example_logic.py my_logic.py   # copy karo
+# my_logic.py me apna logic likho (get_signal -> "BUY"/"SELL"/None)
+python realtime_alerter.py        # bot automatically my_logic.py use karega
+```
+
 ## ⚡ FREE Real-time Alerts (`realtime_alerter.py`)
 
 TradingView free plan me custom indicator alerts **0** milte — isliye yeh bot
