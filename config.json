@@ -6,6 +6,13 @@
     "bot_token": "PASTE_YOUR_BOT_TOKEN_HERE",
     "chat_id": "PASTE_YOUR_CHAT_ID_HERE"
   },
+  "realtime": {
+    "symbols": ["BTCUSDT", "ETHUSDT"],
+    "interval": "1m",
+    "fast_ema": 9,
+    "slow_ema": 21,
+    "mode": "live"
+  },
   "alerts": [
     {
       "name": "Example Alert",
