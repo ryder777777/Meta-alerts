@@ -17,9 +17,14 @@ LOGIC FORMAT (my_logic.py):
 
 Run:  pip install -r requirements.txt
       python realtime_alerter.py
+
+CLOUD (Render/Railway) deploy ke liye Environment Variables bhi chalte hain:
+      TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
+      (config.json missing ho to config.example.json use hota hai)
 """
 
 import json
+import os
 import time
 import logging
 import threading
@@ -43,10 +48,20 @@ except ImportError:
     from example_logic import get_signal
     log.info("my_logic.py nahi mila -> example_logic.py (demo) chal raha hai")
 
-# ---- Config ek baar ----
-with open(Path(__file__).parent / "config.json", "r", encoding="utf-8") as _f:
+# ---- Config: config.json (local) -> config.example.json (cloud fallback) ----
+_cfg = Path(__file__).parent / "config.json"
+if not _cfg.exists():
+    _cfg = Path(__file__).parent / "config.example.json"
+with open(_cfg, "r", encoding="utf-8") as _f:
     CFG = json.load(_f)
-TG = CFG.get("telegram", {})
+
+# Telegram: ENV sabse pehle (cloud), warna config file
+TG = {
+    "bot_token": os.environ.get("TELEGRAM_BOT_TOKEN")
+                 or CFG.get("telegram", {}).get("bot_token", ""),
+    "chat_id": os.environ.get("TELEGRAM_CHAT_ID")
+               or CFG.get("telegram", {}).get("chat_id", ""),
+}
 RT = CFG["realtime"]
 MODE = RT.get("mode", "live")          # "live" (fastest) ya "close" (confirm)
 HIST = int(RT.get("history_candles", 300))
@@ -205,7 +220,29 @@ def run_mt5(symbols, interval) -> None:
         time.sleep(poll)
 
 
+def start_health_server() -> None:
+    """Render/web hosting ke liye tiny /health endpoint (UptimeRobot ping ke liye)."""
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+
+    class H(BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b"meta-alerts ok")
+
+        def log_message(self, *_a):
+            pass
+
+    port = int(os.environ.get("PORT", "8000"))
+    t = threading.Thread(
+        target=lambda: HTTPServer(("0.0.0.0", port), H).serve_forever(),
+        daemon=True)
+    t.start()
+    log.info("Health server on port %d", port)
+
+
 def run() -> None:
+    start_health_server()
     symbols = [s.upper() for s in RT["symbols"]]
     interval = RT.get("interval", "1m")
     source = RT.get("source", "crypto")

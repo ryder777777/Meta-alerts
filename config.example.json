@@ -4,10 +4,10 @@
   "webhook_secret": "change-me-to-a-random-string",
   "telegram": {
     "bot_token": "PASTE_YOUR_BOT_TOKEN_HERE",
-    "chat_id": "8105864100"
+    "chat_id": "PASTE_YOUR_CHAT_ID_HERE"
   },
   "realtime": {
-    "source": "mt5",
+    "source": "forex",
     "exchange": "auto",
     "symbols": ["XAUUSD"],
     "interval": "1m",
