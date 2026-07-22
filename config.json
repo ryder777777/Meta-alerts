@@ -1,0 +1,12 @@
+{
+  "check_interval_seconds": 30,
+  "alerts": [
+    {
+      "name": "Example Alert",
+      "condition": "value > threshold",
+      "threshold": 100,
+      "message": "Threshold crossed!",
+      "enabled": true
+    }
+  ]
+}
