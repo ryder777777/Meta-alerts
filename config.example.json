@@ -4,14 +4,22 @@
   "webhook_secret": "change-me-to-a-random-string",
   "telegram": {
     "bot_token": "PASTE_YOUR_BOT_TOKEN_HERE",
-    "chat_id": "PASTE_YOUR_CHAT_ID_HERE"
+    "chat_id": "8105864100"
   },
   "realtime": {
+    "source": "mt5",
     "exchange": "auto",
-    "symbols": ["BTCUSDT"],
+    "symbols": ["XAUUSD"],
     "interval": "1m",
     "mode": "live",
     "history_candles": 300
+  },
+  "mt5": {
+    "path": "",
+    "login": 0,
+    "password": "",
+    "server": "",
+    "poll_ms": 100
   },
   "alerts": [
     {

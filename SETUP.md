@@ -1,8 +1,39 @@
 # 🚀 SETUP — 3 Steps (sab FREE, ~0.1-1 sec delay)
 
+## ⭐ IC MARKETS / FOREX / GOLD users (MT5 source — SABSE FAST)
+
+Data seedha aapke broker ke terminal se — broker tick → signal → Telegram,
+koi beech ka server nahi. **~0.1-0.5 sec latency, 100% FREE.**
+
+**Requirements:**
+1. Windows PC + **MetaTrader 5** installed, IC Markets account logged in
+2. MT5 me: `Tools → Options → Expert Advisors → "Allow algorithmic trading" ✅`
+3. `pip install MetaTrader5 requests websocket-client flask`
+4. `config.json` me:
+```json
+"realtime": {
+  "source": "mt5",
+  "symbols": ["XAUUSD"],        // MT5 Market Watch ka EXACT naam
+  "interval": "1m",
+  "mode": "live"
+}
+```
+5. `python realtime_alerter.py` — Bas!
+
+> 💡 MT5 terminal logged-in hai to login/password ki zaroorat NAHI (config ke
+> "mt5" section blank chhodo). Symbols: XAUUSD, EURUSD, GBPUSD, BTCUSD, US30...
+> jo bhi aapke IC Markets MT5 me hai.
+> 🪟 MT5 package sirf Windows pe chalta hai. Mac/Linux ho to Windows VPS lein
+> (IC Markets ka free VPS $5000 deposit pe, ya koi bhi cheap Windows VPS).
+
+---
+
+## 🪙 CRYPTO users (exchange WebSocket source)
+
 ## Step 1: Install
 ```bash
 pip install -r requirements.txt
+# aur config.json me: "source": "crypto"
 ```
 
 ## Step 2: Telegram Bot (2 minute, free)

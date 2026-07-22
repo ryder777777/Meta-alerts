@@ -140,10 +140,8 @@ class SymbolState:
                 fire_alert(self.symbol, sig, price, t0)
 
 
-def run() -> None:
-    symbols = [s.upper() for s in RT["symbols"]]
-    interval = RT.get("interval", "1m")
-
+def run_ws(symbols, interval) -> None:
+    """Crypto path: exchange WebSocket (binance->bybit->okx->gateio->coinbase)."""
     adapter = exchanges.auto(symbols, interval, HIST)
     states = {s: SymbolState(adapter, s, interval) for s in symbols}
 
@@ -181,6 +179,42 @@ def run() -> None:
         except Exception as exc:
             log.error("WS exception: %s", exc)
         time.sleep(3)
+
+
+def run_mt5(symbols, interval) -> None:
+    """IC Markets / broker path: MT5 terminal ke REAL ticks (sabse fast!)."""
+    from mt5_source import MT5Source
+    src = MT5Source(RT.get("mt5", {}))
+    states = {s: SymbolState(src, s, interval) for s in symbols}
+    poll = float(RT.get("mt5", {}).get("poll_ms", 100)) / 1000.0
+
+    threading.Thread(target=lambda: send_telegram(
+        "✅ Meta-alerts LIVE | MT5 broker feed | mode=%s | %s | interval=%s"
+        % (MODE, ",".join(symbols), interval), time.time()), daemon=True).start()
+
+    log.info("START | MT5 | %s | %s | poll=%.0fms", symbols, interval, poll * 1000)
+    while True:
+        t0 = time.time()
+        for s in symbols:
+            try:
+                tk = src.latest_price(s)
+                if tk:
+                    states[s].on_price(tk[0], 0.0, tk[1], t0)
+            except Exception as exc:
+                log.error("%s tick error: %s", s, exc)
+        time.sleep(poll)
+
+
+def run() -> None:
+    symbols = [s.upper() for s in RT["symbols"]]
+    interval = RT.get("interval", "1m")
+    source = RT.get("source", "crypto")
+    log.info("Source: %s", source.upper())
+    if source == "mt5":
+        run_mt5(symbols, interval)
+    else:
+        run_ws(symbols, interval)
+
 
 
 if __name__ == "__main__":
