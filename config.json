@@ -1,5 +1,11 @@
 {
   "check_interval_seconds": 30,
+  "port": 5000,
+  "webhook_secret": "change-me-to-a-random-string",
+  "telegram": {
+    "bot_token": "PASTE_YOUR_BOT_TOKEN_HERE",
+    "chat_id": "PASTE_YOUR_CHAT_ID_HERE"
+  },
   "alerts": [
     {
       "name": "Example Alert",

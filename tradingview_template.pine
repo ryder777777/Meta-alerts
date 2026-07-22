@@ -1,0 +1,33 @@
+//@version=5
+indicator("Meta-alerts Fast Signals", overlay=true)
+
+// ============================================================
+//  APNE CUSTOM INDICATOR KE BUY/SELL SIGNALS YAHAN DEFINE KARO
+//  (Neeche sirf example hai — apni conditions se replace karo)
+// ============================================================
+emaFast = ta.ema(close, 9)
+emaSlow = ta.ema(close, 21)
+buySignal  = ta.crossover(emaFast, emaSlow)
+sellSignal = ta.crossunder(emaFast, emaSlow)
+// ============================================================
+
+plot(emaFast, "EMA Fast", color=color.orange)
+plot(emaSlow, "EMA Slow", color=color.blue)
+plotshape(buySignal,  style=shape.triangleup,   location=location.belowbar,
+          color=color.green, size=size.small, title="Buy")
+plotshape(sellSignal, style=shape.triangledown, location=location.abovebar,
+          color=color.red,   size=size.small, title="Sell")
+
+// ============================================================
+//  FAST REAL-TIME ALERTS (bar close ka wait NAHI karta)
+//  alert.freq_once_per_bar = candle ke andar hi turant fire
+// ============================================================
+if buySignal
+    alert('{"side":"BUY","ticker":"' + syminfo.ticker +
+          '","price":' + str.tostring(close) + '}',
+          alert.freq_once_per_bar)
+
+if sellSignal
+    alert('{"side":"SELL","ticker":"' + syminfo.ticker +
+          '","price":' + str.tostring(close) + '}',
+          alert.freq_once_per_bar)
