@@ -140,9 +140,9 @@ class SymbolState:
                 fire_alert(self.symbol, sig, price, t0)
 
 
-def run_ws(symbols, interval) -> None:
-    """Crypto path: exchange WebSocket (binance->bybit->okx->gateio->coinbase)."""
-    adapter = exchanges.auto(symbols, interval, HIST)
+def run_ws(symbols, interval, adapter=None) -> None:
+    """WebSocket path: crypto (auto) ya forex (deriv) — real ticks."""
+    adapter = adapter or exchanges.auto(symbols, interval, HIST)
     states = {s: SymbolState(adapter, s, interval) for s in symbols}
 
     threading.Thread(target=lambda: send_telegram(
@@ -212,6 +212,9 @@ def run() -> None:
     log.info("Source: %s", source.upper())
     if source == "mt5":
         run_mt5(symbols, interval)
+    elif source == "forex":
+        import forex_source
+        run_ws(symbols, interval, adapter=forex_source.Deriv(symbols))
     else:
         run_ws(symbols, interval)
 
