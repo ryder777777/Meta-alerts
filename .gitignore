@@ -5,8 +5,9 @@ venv/
 .env
 *.log
 
-# ======== PRIVACY — yeh files kabhi GitHub pe NAHI jaayengi ========
-config.json          # aapke telegram tokens
+# ======== PRIVACY: yeh files kabhi GitHub pe NAHI jaayengi ========
+# tokens wali config
+config.json
 config.local.json
-my_logic.py          # AAPKA SECRET TRADING LOGIC
-# ==================================================================
+# AAPKA SECRET TRADING LOGIC
+my_logic.py
