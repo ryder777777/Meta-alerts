@@ -7,10 +7,9 @@
     "chat_id": "PASTE_YOUR_CHAT_ID_HERE"
   },
   "realtime": {
-    "symbols": ["BTCUSDT", "ETHUSDT"],
+    "exchange": "auto",
+    "symbols": ["BTCUSDT"],
     "interval": "1m",
-    "fast_ema": 9,
-    "slow_ema": 21,
     "mode": "live",
     "history_candles": 300
   },
