@@ -98,6 +98,7 @@ class CTraderSource:
         self._authed = threading.Event()
         self._fatal = None
         self._subscribed = False
+        self._want_symbols = []
         self.on_tick = None     # callback(sym, price, ts_ms)
 
     # ---------------- Twisted plumbing ----------------
@@ -105,8 +106,10 @@ class CTraderSource:
         """Reactor thread start + app+account auth + symbol ids. Blocking."""
         from ctrader_open_api import Client, TcpProtocol, EndPoints
         from ctrader_open_api.messages import OpenApiMessages_pb2 as M
+        from ctrader_open_api.messages import OpenApiCommonMessages_pb2 as C
         from twisted.internet import reactor
         self._M = M
+        self._hb_payloadtype = C.ProtoHeartbeatEvent().payloadType
         self._reactor = reactor
 
         host = (EndPoints.PROTOBUF_LIVE_HOST if self.host_type == "live"
@@ -144,10 +147,35 @@ class CTraderSource:
         M = self._M
         pt = message.payloadType
         try:
-            if pt == M.ProtoHeartbeatEvent().payloadType:
+            if pt == self._hb_payloadtype:
                 return
             if pt == M.ProtoOAApplicationAuthRes().payloadType:
-                log.info("App authorized, AccountAuth bheja")
+                log.info("App authorized, account list nikal raha")
+                req = M.ProtoOAGetAccountListByAccessTokenReq()
+                req.accessToken = self.access_token
+                client.send(req, responseTimeoutInSeconds=15)
+            elif pt == M.ProtoOAGetAccountListByAccessTokenRes().payloadType:
+                data = self._extract(message,
+                                     M.ProtoOAGetAccountListByAccessTokenRes)
+                accs = [(a.ctidTraderAccountId,
+                         getattr(a, "traderLogin", None),
+                         getattr(a, "accountType", None))
+                        for a in data.ctidTraderAccount]
+                log.info("Accounts from token: %s", accs)
+                if not accs:
+                    self._fatal = "access token se koi account nahi mila"
+                    self._authed.set()
+                    return
+                # tera login number (10089341) match karo, warna pehla lo
+                pick = None
+                for aid, login, _t in accs:
+                    if login and int(login) == self.account_id:
+                        pick = aid
+                        break
+                if pick is None:
+                    pick = accs[0][0]
+                self.account_id = int(pick)
+                log.info("Account pick: ctidTraderAccountId=%s", pick)
                 req = M.ProtoOAAccountAuthReq()
                 req.ctidTraderAccountId = self.account_id
                 req.accessToken = self.access_token
