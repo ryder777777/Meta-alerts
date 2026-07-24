@@ -233,7 +233,14 @@ def run_ctrader(symbols, interval) -> None:
     """IC Markets EXACT feed: cTrader Open API (app+account OAuth)."""
     from ctrader_source import CTraderSource
     src = CTraderSource()
-    src.bootstrap(symbols)
+    try:
+        src.bootstrap(symbols)
+    except RuntimeError as exc:
+        log.warning("cTrader boot fail (%s) — refresh karke retry", exc)
+        if not src.try_refresh_once():
+            raise
+        src = CTraderSource()
+        src.bootstrap(symbols)
     states = {s: SymbolState(src, s, interval) for s in symbols}
 
     def on_tick(sym, price, ts):
@@ -302,16 +309,43 @@ def start_health_server() -> None:
                           "<pre>%s</pre>" % exc).encode())
                 return
             log.info("cTrader OAuth OK — refresh token mil gaya")
-            html = (style + "<h3 style='color:#6bff8f'>Tokens ready!</h3>"
-                    "<p>Render > Environment me ye 2 vars add karo:</p>"
-                    "<p><b>CTRADER_ACCESS_TOKEN</b><br>"
-                    "<code style='word-break:break-all'>%s</code></p>"
-                    "<p><b>CTRADER_REFRESH_TOKEN</b><br>"
-                    "<code style='word-break:break-all'>%s</code></p>"
-                    "<p><b>CTRADER_ACCOUNT_ID</b> = %s<br>"
-                    "<b>BOT_SOURCE</b> = ctrader</p>"
-                    % (tk["accessToken"], tk["refreshToken"],
-                       os.environ.get("CTRADER_ACCOUNT_ID", "?")))
+            # 1) Render env me auto-save karo (agar RENDER_API_KEY set hai)
+            saved, msg = False, ""
+            try:
+                from ctrader_source import _render_persist
+                _render_persist({
+                    "CTRADER_ACCESS_TOKEN": tk["accessToken"],
+                    "CTRADER_REFRESH_TOKEN": tk["refreshToken"],
+                    "BOT_SOURCE": "ctrader"})
+                if os.environ.get("RENDER_API_KEY"):
+                    sid = os.environ.get("RENDER_SERVICE_ID", "")
+                    r = requests.post(
+                        "https://api.render.com/v1/services/%s/deploys" % sid,
+                        headers={"Authorization": "Bearer %s"
+                                 % os.environ["RENDER_API_KEY"],
+                                 "Accept": "application/json",
+                                 "Content-Type": "application/json"},
+                        json={}, timeout=20)
+                    saved = r.status_code in (200, 201)
+                    msg = "deploy HTTP %s" % r.status_code
+            except Exception as exc:  # noqa: BLE001
+                msg = str(exc)
+            if saved:
+                html = (style + "<h2 style='color:#6bff8f'>HO GAYA!</h2>"
+                        "<p>Tokens Render pe auto-save + redeploy ho gaya. "
+                        "2-3 min me Telegram pe '<b>ctrader/IC-MARKETS</b>' "
+                        "LIVE message aayega. Ye page band kar do.</p>"
+                        "<small>%s</small>" % msg)
+            else:
+                html = (style + "<h3 style='color:#6bff8f'>Tokens ready!</h3>"
+                        "<p>Render > Environment me ye add karo:</p>"
+                        "<p><b>CTRADER_ACCESS_TOKEN</b><br>"
+                        "<code style='word-break:break-all'>%s</code></p>"
+                        "<p><b>CTRADER_REFRESH_TOKEN</b><br>"
+                        "<code style='word-break:break-all'>%s</code></p>"
+                        "<p><b>BOT_SOURCE</b> = ctrader</p>"
+                        "<small>persist: %s</small>"
+                        % (tk["accessToken"], tk["refreshToken"], msg))
             self._ok(html.encode())
 
         def log_message(self, *_a):

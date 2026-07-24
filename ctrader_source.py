@@ -62,13 +62,32 @@ def refresh_access_token(refresh_token, client_id, client_secret):
     """Refresh token (kabhi expire nahi hota) se fresh access token."""
     try:
         return _token_request({
-            "grant_type": "refresh_token", "refreshToken": refresh_token,
+            "grant_type": "refresh_token", "refresh_token": refresh_token,
             "client_id": client_id, "client_secret": client_secret})
     except RuntimeError as e:
-        log.warning("refreshToken param failed (%s), trying code param", e)
+        log.warning("refresh_token param failed (%s), trying refreshToken", e)
         return _token_request({
-            "grant_type": "refresh_token", "code": refresh_token,
+            "grant_type": "refresh_token", "refreshToken": refresh_token,
             "client_id": client_id, "client_secret": client_secret})
+
+
+def _render_persist(new_vars):
+    """Naye tokens Render env vars me save (rotation-safe). Optional."""
+    key = os.environ.get("RENDER_API_KEY")
+    sid = os.environ.get("RENDER_SERVICE_ID")
+    if not key or not sid:
+        log.info("RENDER_API_KEY/SERVICE_ID nahi hai — persist skip")
+        return
+    body = [{"key": k, "value": v} for k, v in new_vars.items()]
+    r = requests.put(
+        "https://api.render.com/v1/services/%s/env-vars" % sid,
+        headers={"Authorization": "Bearer %s" % key,
+                 "Accept": "application/json"},
+        json=body, timeout=20)
+    if r.status_code in (200, 201):
+        log.info("Naye tokens Render env me save ho gaye (auto redeploy hoga)")
+    else:
+        log.warning("Render persist HTTP %s: %s", r.status_code, r.text[:200])
 
 
 class CTraderSource:
@@ -81,15 +100,16 @@ class CTraderSource:
         self.client_secret = os.environ["CTRADER_CLIENT_SECRET"]
         self.account_id = int(os.environ["CTRADER_ACCOUNT_ID"])
         rt = os.environ.get("CTRADER_REFRESH_TOKEN", "")
-        if rt:
-            log.info("Refreshing access token...")
-            tk = refresh_access_token(rt, self.client_id, self.client_secret)
-            self.access_token = tk["accessToken"]
-            log.info("Fresh access token OK (30 din valid)")
-        else:
-            self.access_token = os.environ.get("CTRADER_ACCESS_TOKEN", "")
-        if not self.access_token:
-            raise RuntimeError("CTRADER_REFRESH_TOKEN / CTRADER_ACCESS_TOKEN missing")
+        at = os.environ.get("CTRADER_ACCESS_TOKEN", "")
+        if at:
+            # access token 30 din chalta hai — startup pe refresh MAT karo
+            # (refresh karne se purana refresh token rotate/invalid ho jata hai)
+            self.access_token = at
+            log.info("Using CTRADER_ACCESS_TOKEN from env (no startup refresh)")
+        elif rt:
+            self.access_token = self._refresh_and_persist(rt)
+        if not getattr(self, "access_token", ""):
+            raise RuntimeError("CTRADER_ACCESS_TOKEN / CTRADER_REFRESH_TOKEN missing")
         self.host_type = os.environ.get("CTRADER_HOST_TYPE", "demo").lower()
 
         self._M = None          # protobuf module (lazy, reactor thread-safe)
@@ -99,31 +119,46 @@ class CTraderSource:
         self._fatal = None
         self._subscribed = False
         self._want_symbols = []
+        self._reactor_started = False
         self.on_tick = None     # callback(sym, price, ts_ms)
 
-    # ---------------- Twisted plumbing ----------------
+    def _refresh_and_persist(self, rt):
+        """Refresh + naya pair Render env me save (rotation-proof)."""
+        log.info("Access token refresh ho raha (30-din expiry ke baad)...")
+        tk = refresh_access_token(rt, self.client_id, self.client_secret)
+        log.info("Fresh access token OK (30 din valid)")
+        try:
+            _render_persist({
+                "CTRADER_ACCESS_TOKEN": tk["accessToken"],
+                "CTRADER_REFRESH_TOKEN": tk.get("refreshToken", rt)})
+        except Exception as exc:  # noqa: BLE001
+            log.warning("Render env persist skip: %s", exc)
+        return tk["accessToken"]
+
+    def try_refresh_once(self):
+        """Auth fail hone pe ek baar refresh karke retry (run_ctrader calls)."""
+        rt = os.environ.get("CTRADER_REFRESH_TOKEN", "")
+        if not rt:
+            return False
+        try:
+            self.access_token = self._refresh_and_persist(rt)
+            return True
+        except Exception as exc:  # noqa: BLE001
+            log.error("Refresh failed: %s", exc)
+            return False
     def bootstrap(self, symbols):
         """Reactor thread start + app+account auth + symbol ids. Blocking."""
-        from ctrader_open_api import Client, TcpProtocol, EndPoints
-        from ctrader_open_api.messages import OpenApiMessages_pb2 as M
-        from ctrader_open_api.messages import OpenApiCommonMessages_pb2 as C
         from twisted.internet import reactor
-        self._M = M
-        self._hb_payloadtype = C.ProtoHeartbeatEvent().payloadType
-        self._reactor = reactor
-
-        host = (EndPoints.PROTOBUF_LIVE_HOST if self.host_type == "live"
-                else EndPoints.PROTOBUF_DEMO_HOST)
-        self.client = Client(host, EndPoints.PROTOBUF_PORT, TcpProtocol)
-        self.client.setConnectedCallback(self._connected)
-        self.client.setDisconnectedCallback(self._disconnected)
-        self.client.setMessageReceivedCallback(self._on_message)
         self._want_symbols = symbols
-
-        t = threading.Thread(target=lambda: reactor.run(
-            installSignalHandlers=False), daemon=True)
-        t.start()
-        time.sleep(0.5)
+        self._authed.clear()
+        self._fatal = None
+        self._new_client()
+        if not self._reactor_started:
+            self._reactor_started = True
+            t = threading.Thread(target=lambda: reactor.run(
+                installSignalHandlers=False), daemon=True)
+            t.start()
+            time.sleep(0.5)
         reactor.callFromThread(self.client.startService)
 
         if not self._authed.wait(40):
@@ -131,6 +166,21 @@ class CTraderSource:
         if self._fatal:
             raise RuntimeError("cTrader auth failed: %s" % self._fatal)
         log.info("cTrader authed. Symbols: %s", self.symbol_ids)
+
+    def _new_client(self):
+        from ctrader_open_api import Client, TcpProtocol, EndPoints
+        from ctrader_open_api.messages import OpenApiMessages_pb2 as M
+        from ctrader_open_api.messages import OpenApiCommonMessages_pb2 as C
+        from twisted.internet import reactor
+        self._M = M
+        self._hb_payloadtype = C.ProtoHeartbeatEvent().payloadType
+        self._reactor = reactor
+        host = (EndPoints.PROTOBUF_LIVE_HOST if self.host_type == "live"
+                else EndPoints.PROTOBUF_DEMO_HOST)
+        self.client = Client(host, EndPoints.PROTOBUF_PORT, TcpProtocol)
+        self.client.setConnectedCallback(self._connected)
+        self.client.setDisconnectedCallback(self._disconnected)
+        self.client.setMessageReceivedCallback(self._on_message)
 
     def _connected(self, client):
         log.info("cTrader TCP connected, AppAuth bheja")
