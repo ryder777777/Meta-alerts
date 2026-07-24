@@ -78,12 +78,26 @@ def _render_persist(new_vars):
     if not key or not sid:
         log.info("RENDER_API_KEY/SERVICE_ID nahi hai — persist skip")
         return
-    body = [{"key": k, "value": v} for k, v in new_vars.items()]
-    r = requests.put(
-        "https://api.render.com/v1/services/%s/env-vars" % sid,
-        headers={"Authorization": "Bearer %s" % key,
-                 "Accept": "application/json"},
-        json=body, timeout=20)
+    base = "https://api.render.com/v1/services/%s" % sid
+    hdr = {"Authorization": "Bearer %s" % key, "Accept": "application/json"}
+    # PUT full-replace karta hai — pehle existing vars fetch karke merge karo
+    cur = {}
+    page = ""
+    for _ in range(10):
+        r = requests.get(base + "/env-vars?limit=100%s" % page,
+                         headers=hdr, timeout=20)
+        items = r.json() if r.status_code == 200 else []
+        if not items:
+            break
+        for it in items:
+            ev = it.get("envVar", {})
+            cur[ev.get("key")] = ev.get("value", "")
+            page = "&cursor=" + str(it.get("cursor", ""))
+        if len(items) < 100 or not cur:
+            break
+    cur.update(new_vars)
+    body = [{"key": k, "value": v} for k, v in cur.items() if v is not None]
+    r = requests.put(base + "/env-vars", headers=hdr, json=body, timeout=20)
     if r.status_code in (200, 201):
         log.info("Naye tokens Render env me save ho gaye (auto redeploy hoga)")
     else:
