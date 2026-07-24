@@ -229,19 +229,90 @@ def run_mt5(symbols, interval) -> None:
         time.sleep(poll)
 
 
+def run_ctrader(symbols, interval) -> None:
+    """IC Markets EXACT feed: cTrader Open API (app+account OAuth)."""
+    from ctrader_source import CTraderSource
+    src = CTraderSource()
+    src.bootstrap(symbols)
+    states = {s: SymbolState(src, s, interval) for s in symbols}
+
+    def on_tick(sym, price, ts):
+        t0 = time.time()
+        st = states.get(sym)
+        if st:
+            st.on_price(price, 0.0, ts, t0)
+
+    src.on_tick = on_tick
+    src.subscribe_spots(symbols)
+
+    send_telegram(
+        "✅ Meta-alerts LIVE | ctrader/IC-MARKETS (exact feed) | mode=%s | %s | interval=%s"
+        % (MODE, ",".join(symbols), interval), time.time())
+    log.info("START | CTRADER | %s | %s", symbols, interval)
+    while True:
+        time.sleep(3600)   # sab kaam reactor thread me hota hai
+
+
 def start_health_server() -> None:
     """Render/web hosting ke liye tiny /health endpoint (UptimeRobot ping ke liye)."""
     from http.server import BaseHTTPRequestHandler, HTTPServer
 
     class H(BaseHTTPRequestHandler):
-        def do_GET(self):
+        def _ok(self, body=b"meta-alerts ok"):
             self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
             self.end_headers()
-            self.wfile.write(b"meta-alerts ok")
+            if body:
+                self.wfile.write(body)
+
+        def do_GET(self):
+            if self.path.startswith("/ctrader"):
+                self._handle_ctrader_oauth()
+                return
+            self._ok()
 
         def do_HEAD(self):
-            self.send_response(200)
-            self.end_headers()
+            self._ok(b"")
+
+        def _handle_ctrader_oauth(self):
+            from urllib.parse import urlparse, parse_qs
+            from ctrader_source import (exchange_code, REDIRECT_URI,
+                                        TOKEN_URL)
+            q = parse_qs(urlparse(self.path).query)
+            cid = os.environ.get("CTRADER_CLIENT_ID", "")
+            sec = os.environ.get("CTRADER_CLIENT_SECRET", "")
+            code = (q.get("code") or [""])[0]
+            style = ("<body style='font-family:Arial;background:#0e1117;"
+                     "color:#eee;padding:24px;font-size:17px'>")
+            if not code:
+                auth = ("https://id.ctrader.com/my/settings/openapi"
+                        "/grantingaccess/?client_id=%s&redirect_uri=%s"
+                        "&scope=accounts&product=web"
+                        % (requests.utils.quote(cid),
+                           requests.utils.quote(REDIRECT_URI)))
+                self._ok((style + "<h3>cTrader connect</h3><p>"
+                          "<a href='%s' style='color:#4da3ff'>"
+                          "1. Yahan tap karo -> Allow access</a></p>" % auth
+                          ).encode())
+                return
+            try:
+                tk = exchange_code(code, cid, sec)
+            except Exception as exc:  # noqa: BLE001
+                self._ok((style + "<h3 style='color:#ff6b6b'>Error</h3>"
+                          "<pre>%s</pre>" % exc).encode())
+                return
+            log.info("cTrader OAuth OK — refresh token mil gaya")
+            html = (style + "<h3 style='color:#6bff8f'>Tokens ready!</h3>"
+                    "<p>Render > Environment me ye 2 vars add karo:</p>"
+                    "<p><b>CTRADER_ACCESS_TOKEN</b><br>"
+                    "<code style='word-break:break-all'>%s</code></p>"
+                    "<p><b>CTRADER_REFRESH_TOKEN</b><br>"
+                    "<code style='word-break:break-all'>%s</code></p>"
+                    "<p><b>CTRADER_ACCOUNT_ID</b> = %s<br>"
+                    "<b>BOT_SOURCE</b> = ctrader</p>"
+                    % (tk["accessToken"], tk["refreshToken"],
+                       os.environ.get("CTRADER_ACCOUNT_ID", "?")))
+            self._ok(html.encode())
 
         def log_message(self, *_a):
             pass
@@ -258,9 +329,11 @@ def run() -> None:
     start_health_server()
     symbols = [s.upper() for s in RT["symbols"]]
     interval = RT.get("interval", "1m")
-    source = RT.get("source", "crypto")
+    source = os.environ.get("BOT_SOURCE", RT.get("source", "crypto"))
     log.info("Source: %s", source.upper())
-    if source == "mt5":
+    if source == "ctrader":
+        run_ctrader(symbols, interval)
+    elif source == "mt5":
         run_mt5(symbols, interval)
     elif source == "forex":
         import forex_source
