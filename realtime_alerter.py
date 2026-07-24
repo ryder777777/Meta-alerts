@@ -40,13 +40,22 @@ logging.basicConfig(level=logging.INFO,
                     datefmt="%H:%M:%S")
 log = logging.getLogger("meta-alerts-rt")
 
-# ---- Aapka PRIVATE logic (warna demo example) ----
-try:
-    from my_logic import get_signal  # noqa: F401  (gitignored secret file)
-    log.info("Loaded PRIVATE logic: my_logic.py")
-except ImportError:
-    from example_logic import get_signal
-    log.info("my_logic.py nahi mila -> example_logic.py (demo) chal raha hai")
+# ---- Aapka logic load (3 levels, sabse pehle ENCRYPTED) ----
+_b64 = os.environ.get("SECRET_LOGIC_B64")
+if _b64:
+    # Render env var me encrypted (base64) logic — GitHub me kabhi nahi aata
+    import base64
+    _ns = {}
+    exec(base64.b64decode(_b64).decode("utf-8"), _ns)
+    get_signal = _ns["get_signal"]
+    log.info("Loaded ENCRYPTED logic from env var (GitHub pe kahin nahi hai)")
+else:
+    try:
+        from my_logic import get_signal  # noqa: F401  (gitignored secret file)
+        log.info("Loaded PRIVATE logic: my_logic.py")
+    except ImportError:
+        from example_logic import get_signal
+        log.info("demo logic (example_logic.py) chal raha hai")
 
 # ---- Config: config.json (local) -> config.example.json (cloud fallback) ----
 _cfg = Path(__file__).parent / "config.json"
