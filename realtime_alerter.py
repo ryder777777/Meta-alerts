@@ -48,13 +48,19 @@ if _b64:
     _ns = {}
     exec(base64.b64decode(_b64).decode("utf-8"), _ns)
     get_signal = _ns["get_signal"]
+    format_alert = _ns.get("format_alert")      # optional custom alert text
     log.info("Loaded ENCRYPTED logic from env var (GitHub pe kahin nahi hai)")
 else:
     try:
         from my_logic import get_signal  # noqa: F401  (gitignored secret file)
+        try:
+            from my_logic import format_alert  # optional
+        except ImportError:
+            format_alert = None
         log.info("Loaded PRIVATE logic: my_logic.py")
     except ImportError:
         from example_logic import get_signal
+        format_alert = None
         log.info("demo logic (example_logic.py) chal raha hai")
 
 # ---- Config: config.json (local) -> config.example.json (cloud fallback) ----
@@ -102,8 +108,12 @@ def send_telegram(text: str, t0: float) -> None:
 
 
 def fire_alert(symbol: str, side: str, price: float, t0: float) -> None:
-    emoji = "🟢" if side == "BUY" else "🔴"
-    msg = f"{emoji} {side} | {symbol} @ {price}"
+    fa = globals().get("format_alert")
+    if callable(fa):
+        msg = fa(symbol, side, price)
+    else:
+        emoji = "🟢" if side == "BUY" else "🔴"
+        msg = f"{emoji} {side} | {symbol} @ {price}"
     log.info("DETECT->fire %.3fs | %s", time.time() - t0, msg)
     threading.Thread(target=send_telegram, args=(msg, t0), daemon=True).start()
 

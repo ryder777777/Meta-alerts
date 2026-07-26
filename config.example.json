@@ -9,10 +9,12 @@
   "realtime": {
     "source": "forex",
     "exchange": "auto",
-    "symbols": ["XAUUSD"],
+    "symbols": [
+      "XAUUSD"
+    ],
     "interval": "1m",
     "mode": "live",
-    "history_candles": 300
+    "history_candles": 900
   },
   "mt5": {
     "path": "",
