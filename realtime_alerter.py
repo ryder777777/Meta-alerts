@@ -86,6 +86,32 @@ HIST = int(RT.get("history_candles", 300))
 MINS = exchanges.interval_mins(RT.get("interval", "1m"))
 BUCKET_MS = MINS * 60_000
 
+# TV ANCHOR: TradingView broker candles ko week-open se anchor karta hai —
+# IC Markets 3m TV candle UTC-aligned se -1 min offset hoti hai (e.g. 20:44
+# IST bucket instead of 20:45). TV_ANCHOR_MIN=-1 set karne se bot ki candles
+# EXACT TV jaisi boundary pe banti hain. 0/empty = off (UTC-aligned default).
+_ANCHOR = float(os.environ.get("TV_ANCHOR_MIN", "0") or 0)
+OFFSET_MS = (int(_ANCHOR * 60_000) % BUCKET_MS) if BUCKET_MS else 0
+
+
+def _bucket(ts_ms: int) -> int:
+    """Candle bucket start (ms) — anchor offset ke saath."""
+    return ((int(ts_ms) - OFFSET_MS) // BUCKET_MS) * BUCKET_MS + OFFSET_MS
+
+
+def _aggregate_m1(rows):
+    """1m candles (t,o,h,l,c,v) ko anchored buckets me stitch karo."""
+    out = []
+    for r in rows:
+        b = _bucket(r[0])
+        if out and out[-1][0] == b:
+            cur = out[-1]
+            cur[2] = max(cur[2], r[2]); cur[3] = min(cur[3], r[3])
+            cur[4] = r[4]; cur[5] += r[5]
+        else:
+            out.append([b, r[1], r[2], r[3], r[4], r[5]])
+    return [tuple(x) for x in out]
+
 SESSION = requests.Session()
 _TG_WARNED = False
 
@@ -128,8 +154,14 @@ class SymbolState:
         self.symbol = symbol
         self.alerted = None
         self.cur = None  # [bucket_ms, o, h, l, c, v]
-        rows = adapter.seed(symbol, interval, HIST + 1)
-        now_b = (int(time.time() * 1000) // BUCKET_MS) * BUCKET_MS
+        if OFFSET_MS and MINS > 1:
+            # anchored mode: server candles UTC-aligned hoti hain — 1m se
+            # stitch karo taaki buckets EXACT TV/TV-broker week-open jaisi banein
+            rows = _aggregate_m1(adapter.seed(symbol, "1m",
+                                              HIST * MINS + MINS + 2))
+        else:
+            rows = adapter.seed(symbol, interval, HIST + 1)
+        now_b = _bucket(int(time.time() * 1000))
         rows = [r for r in rows if r[0] < now_b][-HIST:]   # sirf closed candles
         self.t = [r[0] for r in rows]
         self.o = [r[1] for r in rows]
@@ -156,7 +188,7 @@ class SymbolState:
                 fire_alert(self.symbol, sig, self.cur[4], t0)
 
     def on_price(self, price: float, vol: float, ts: int, t0: float) -> None:
-        b = (ts // BUCKET_MS) * BUCKET_MS
+        b = _bucket(ts)
         if self.cur is None or b > self.cur[0]:
             if self.cur is not None:
                 self._finalize_candle(t0)
@@ -266,9 +298,11 @@ def run_ctrader(symbols, interval) -> None:
     src.subscribe_spots(symbols)
 
     send_telegram(
-        "✅ Meta-alerts LIVE | ctrader/IC-MARKETS (exact feed) | mode=%s | %s | interval=%s"
-        % (MODE, ",".join(symbols), interval), time.time())
-    log.info("START | CTRADER | %s | %s", symbols, interval)
+        "✅ Meta-alerts LIVE | ctrader/IC-MARKETS (exact feed) | mode=%s | %s | interval=%s%s"
+        % (MODE, ",".join(symbols), interval,
+           " | TV-anchor" if OFFSET_MS else ""), time.time())
+    log.info("START | CTRADER | %s | %s | anchor=%smin", symbols, interval,
+             _ANCHOR)
     while True:
         time.sleep(3600)   # sab kaam reactor thread me hota hai
 
