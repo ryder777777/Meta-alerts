@@ -78,6 +78,9 @@ TG = {
                or CFG.get("telegram", {}).get("chat_id", ""),
 }
 RT = CFG["realtime"]
+# LOGIC_TF env se interval override (bina code/GitHub change ke switch)
+if os.environ.get("LOGIC_TF"):
+    RT["interval"] = os.environ["LOGIC_TF"]
 MODE = RT.get("mode", "live")          # "live" (fastest) ya "close" (confirm)
 HIST = int(RT.get("history_candles", 300))
 MINS = exchanges.interval_mins(RT.get("interval", "1m"))
