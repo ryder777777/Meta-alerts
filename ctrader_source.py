@@ -295,16 +295,22 @@ class CTraderSource:
         self.client.send(req, responseTimeoutInSeconds=15)
 
     # ---------------- Adapter API (run() uses these) ----------------
-    def _fetch_trendbars(self, symbol_id, period, from_ms, to_ms, count):
-        """Ek blocking trendbar request (reactor thread-safe)."""
+    def seed(self, sym, interval, limit):
+        """Blocking trendbars seed via reactor. (ot_ms,o,h,l,c,v) list."""
         M = self._M
+        symbol_id = self.symbol_ids[sym.upper()]
+        period = _PERF.get(interval.lower(), 1)
+        now_ms = int(time.time() * 1000)
+        mins = int(interval[:-1])
+        span_ms = limit * mins * (3600 if interval[-1].lower() == "h" else 60) * 1000
+
         req = M.ProtoOAGetTrendbarsReq()
         req.ctidTraderAccountId = self.account_id
         req.symbolId = symbol_id
         req.period = period
-        req.fromTimestamp = from_ms
-        req.toTimestamp = to_ms
-        req.count = count
+        req.fromTimestamp = now_ms - span_ms - (60 * mins * 60 * 1000)
+        req.toTimestamp = now_ms
+        req.count = min(limit, 999)
 
         done = threading.Event()
         box = {}
@@ -333,45 +339,14 @@ class CTraderSource:
 
         self._reactor.callFromThread(go)
         if not done.wait(30):
-            raise RuntimeError("trendbar fetch timeout")
+            raise RuntimeError("trendbar seed timeout for %s" % sym)
         if "err" in box:
-            raise RuntimeError("trendbar fetch error: %s" % box["err"])
-        return box["rows"]
-
-    def seed(self, sym, interval, limit):
-        """Blocking trendbars seed. (ot_ms,o,h,l,c,v) list.
-        limit > 900 ho to chunks me fetch (server per-request cap)."""
-        symbol_id = self.symbol_ids[sym.upper()]
-        period = _PERF.get(interval.lower(), 1)
-        now_ms = int(time.time() * 1000)
-        mins = int(interval[:-1])
-        bar_ms = mins * (3600 if interval[-1].lower() == "h" else 60) * 1000
-
-        uniq = {}
-        to_ms = now_ms
-        # har chunk 900 bars (server single request me itne hi deta hai)
-        for _ in range(12):
-            need = limit - len(uniq)
-            if need <= 0:
-                break
-            n = min(need, 900)
-            rows = self._fetch_trendbars(symbol_id, period,
-                                         to_ms - n * bar_ms - bar_ms,
-                                         to_ms, n)
-            if not rows:
-                break
-            before = len(uniq)
-            for r in rows:
-                uniq[r[0]] = r
-            if len(uniq) == before:      # kuch naya nahi mila -> ruk jao
-                break
-            to_ms = min(r[0] for r in rows) - 60000
-
-        rows = sorted(uniq.values())[-limit:]
+            raise RuntimeError("trendbar seed error: %s" % box["err"])
+        rows = box["rows"][-limit:]
         if not rows:
             raise RuntimeError("empty trendbars for %s" % sym)
-        log.info("cTrader seed %s: %d candles (%s), last=%.2f", sym,
-                 len(rows), interval, rows[-1][4])
+        log.info("cTrader seed %s: %d candles, last=%.2f", sym, len(rows),
+                 rows[-1][4])
         return rows
 
     def subscribe_spots(self, symbols):
