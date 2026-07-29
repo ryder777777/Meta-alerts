@@ -242,6 +242,86 @@ def run_mt5(symbols, interval) -> None:
         time.sleep(poll)
 
 
+# ---- FEED GUARD: demo node sanity vs real gold benchmark ----
+# IC demo kabhi-kabhi ganda node deta hai (price $20-40 shifted) — us case me
+# bot ke candles TV se match nahi hote aur signals SILENT miss ho jate hain.
+# Guard: seeded close ko real gold (gold-api) se compare karo; zyada diff ho
+# toh reconnect / restart. FEED_GUARD_MAX_DIFF env se threshold change ho sakta.
+_GOLD_REF = "https://api.gold-api.com/price/XAU"
+_GUARD_DIFF = float(os.environ.get("FEED_GUARD_MAX_DIFF", "3.0"))
+
+
+def _real_gold():
+    try:
+        return float(SESSION.get(_GOLD_REF, timeout=8).json()["price"])
+    except Exception as exc:  # noqa: BLE001
+        log.info("gold benchmark unavailable (%s) — guard skip", exc)
+        return None
+
+
+def _node_ok(src, symbol, tag):
+    ref = _real_gold()
+    if ref is None:
+        return True                     # benchmark na mile toh block mat kar
+    last = src.seed(symbol, RT.get("interval", "1m"), 3)[-1][4]
+    diff = abs(last - ref)
+    ok = diff <= _GUARD_DIFF
+    log.info("FEED GUARD %s: bot %.2f vs real %.2f | diff %.2f -> %s",
+             tag, last, ref, diff, "OK" if ok else "GANDA NODE")
+    return ok
+
+
+def _seed_closes(src, symbol, n=40):
+    return {r[0]: r[4] for r in src.seed(symbol, RT.get("interval", "1m"), n)}
+
+
+def _closes_agree(a, b):
+    """Do consecutive nodes ki seeded history compare — stale/replay node
+    pakadta hai (gold-api sirf CURRENT price deta, isliye last-close check
+    akele stale-history wale gande node ko chhod deta hai)."""
+    common = sorted(set(a) & set(b))
+    if len(common) > 4:
+        common = common[:-2]              # live forming edge bars hatao
+    if len(common) < 10:
+        return None                       # decide nahi kar sakte
+    bad = sum(1 for t in common if abs(a[t] - b[t]) > 1.5)
+    log.info("FEED GUARD consensus: %d/%d candles alag -> %s",
+             bad, len(common), "ALAG (ganda)" if bad >= 4 else "MATCH")
+    return bad < 4
+
+
+def _live_ok(st, tag):
+    """Live tick price (spot stream) bhi real se match kare — seed alag
+    node ka ho sakta hai, spot alag. Dono check zaroori."""
+    ref = _real_gold()
+    if ref is None:
+        return True
+    px = st.cur[4] if st.cur is not None else st.c[-1]
+    diff = abs(px - ref)
+    ok = diff <= _GUARD_DIFF
+    log.info("FEED GUARD %s: live %.2f vs real %.2f | diff %.2f -> %s",
+             tag, px, ref, diff, "OK" if ok else "GANDI SPOT FEED")
+    return ok
+
+
+def _feed_watchdog(src, states, symbols):
+    """Chalte bot ki live feed baad me bigad jaye toh pakad + auto-heal."""
+    while True:
+        time.sleep(900)                            # har 15 min
+        try:
+            if _live_ok(states[symbols[0]], "watchdog"):
+                continue
+            send_telegram(
+                "⚠️ IC demo feed gadbada gayi — bot auto-reconnect kar raha (1-2 min)",
+                time.time())
+            time.sleep(4)                          # telegram flush
+            os._exit(1)   # Render process restart -> fresh node + startup guard
+        except SystemExit:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            log.warning("watchdog error: %s", exc)
+
+
 def run_ctrader(symbols, interval) -> None:
     """IC Markets EXACT feed: cTrader Open API (app+account OAuth)."""
     from ctrader_source import CTraderSource
@@ -254,6 +334,28 @@ def run_ctrader(symbols, interval) -> None:
             raise
         src = CTraderSource()
         src.bootstrap(symbols)
+
+    # FEED GUARD v2: (a) current price real se match (b) 2 consecutive nodes
+    # ki seeded HISTORY match — ganda/stale demo node start hi mat hone do
+    tries = 1
+    prev = None
+    good = False
+    while tries <= 6:
+        if _node_ok(src, symbols[0], "price#%d" % tries):
+            cur = _seed_closes(src, symbols[0])
+            if prev is not None and _closes_agree(prev, cur):
+                good = True
+                break
+            prev = cur
+        log.warning("FEED GUARD: node sample #%d fail/alag — reconnect", tries)
+        time.sleep(2)
+        src.reconnect(symbols)
+        tries += 1
+    if not good:
+        send_telegram(
+            "⚠️ IC demo feed aaj garbad hai (6 tries fail) — alerts unreliable ho sakte hain, watchdog khud retry karta rahega",
+            time.time())
+
     states = {s: SymbolState(src, s, interval) for s in symbols}
 
     def on_tick(sym, price, ts):
@@ -264,6 +366,9 @@ def run_ctrader(symbols, interval) -> None:
 
     src.on_tick = on_tick
     src.subscribe_spots(symbols)
+
+    threading.Thread(target=_feed_watchdog, args=(src, states, symbols),
+                     daemon=True).start()
 
     send_telegram(
         "✅ Meta-alerts LIVE | ctrader/IC-MARKETS (exact feed) | mode=%s | %s | interval=%s"

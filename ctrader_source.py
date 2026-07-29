@@ -108,6 +108,7 @@ class CTraderSource:
     """IC Markets exact price feed. run_mt5 jaisa blocking adapter."""
 
     name = "ctrader/ic-markets"
+    _REACTOR_STARTED = False          # class-level (reconnect safe)
 
     def __init__(self):
         self.client_id = os.environ["CTRADER_CLIENT_ID"]
@@ -167,8 +168,8 @@ class CTraderSource:
         self._authed.clear()
         self._fatal = None
         self._new_client()
-        if not self._reactor_started:
-            self._reactor_started = True
+        if not CTraderSource._REACTOR_STARTED:
+            CTraderSource._REACTOR_STARTED = True
             t = threading.Thread(target=lambda: reactor.run(
                 installSignalHandlers=False), daemon=True)
             t.start()
@@ -180,6 +181,18 @@ class CTraderSource:
         if self._fatal:
             raise RuntimeError("cTrader auth failed: %s" % self._fatal)
         log.info("cTrader authed. Symbols: %s", self.symbol_ids)
+
+    def reconnect(self, symbols):
+        """Naya TCP connection = naya demo node ka chance (feed guard)."""
+        log.warning("cTrader reconnect — purana node chhod ke naya try")
+        try:
+            self.client.stopService()
+        except Exception:  # noqa: BLE001
+            pass
+        time.sleep(4)      # gateway purana session chhode (ALREADY_LOGGED_IN)
+        self.symbol_ids = {}
+        self._subscribed = False
+        self.bootstrap(symbols)
 
     def _new_client(self):
         from ctrader_open_api import Client, TcpProtocol, EndPoints
