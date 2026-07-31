@@ -487,7 +487,24 @@ def run() -> None:
         try:
             run_ctrader(symbols, interval)
         except RuntimeError as exc:
-            if "auth failed" not in str(exc):
+            msg = str(exc)
+            # Deploy/restart ke waqt PURANA instance abhi TCP session pakde hota
+            # hai -> naya AppAuth ALREADY_LOGGED_IN / CANT_ROUTE / timeout deta
+            # hai. Ye temporary hai: 20s wait + retry — purana marti hi free.
+            transient = ("ALREADY_LOGGED_IN", "CANT_ROUTE", "Cannot route",
+                         "auth timeout")
+            for _ in range(20):
+                if not any(k in msg for k in transient):
+                    break
+                log.warning("cTrader transient (%s) — 20s baad retry "
+                            "(purana instance session chhod raha hai)", msg)
+                time.sleep(20)
+                try:
+                    run_ctrader(symbols, interval)   # success = kabhi return nahi
+                    return
+                except RuntimeError as e2:
+                    msg = str(e2)
+            if "auth failed" not in msg:
                 raise
             # Tokens mar gaye (30-din expiry / rotation) — process ZINDA
             # rakho taaki OAuth page (Flask) chalta rahe. User ALLOW dabayega
