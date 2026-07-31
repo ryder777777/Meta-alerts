@@ -11,3 +11,11 @@ config.json
 config.local.json
 # AAPKA SECRET TRADING LOGIC
 my_logic.py
+
+# ======== EXTRA SECURITY & SECRETS PROTECTION ========
+*.env*
+credentials*
+*.pem
+*.key
+*.token
+*.secret
