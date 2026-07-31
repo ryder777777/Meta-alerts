@@ -484,7 +484,26 @@ def run() -> None:
     source = os.environ.get("BOT_SOURCE", RT.get("source", "crypto"))
     log.info("Source: %s", source.upper())
     if source == "ctrader":
-        run_ctrader(symbols, interval)
+        try:
+            run_ctrader(symbols, interval)
+        except RuntimeError as exc:
+            if "auth failed" not in str(exc):
+                raise
+            # Tokens mar gaye (30-din expiry / rotation) — process ZINDA
+            # rakho taaki OAuth page (Flask) chalta rahe. User ALLOW dabayega
+            # -> handler naye tokens save karke auto-deploy -> fresh boot.
+            page = os.environ.get(
+                "OAUTH_BASE_URL", "https://meta-alerts.onrender.com") + "/ctrader"
+            log.error("cTrader tokens dead — re-OAuth chahiye. Page zinda: %s", page)
+            try:
+                send_telegram(
+                    "🔑 cTrader permission expire ho gayi.\n"
+                    "Is link pe tap karke <b>ALLOW ACCESS</b> dabao — 2 min me LIVE feed wapas:\n"
+                    + page + "\n(iPhone Safari me hi kholo)", time.time())
+            except Exception as send_exc:  # noqa: BLE001
+                log.warning("telegram send fail: %s", send_exc)
+            while True:
+                time.sleep(3600)
     elif source == "mt5":
         run_mt5(symbols, interval)
     elif source == "forex":
