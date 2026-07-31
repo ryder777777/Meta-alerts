@@ -514,11 +514,16 @@ def run() -> None:
             page = os.environ.get(
                 "OAUTH_BASE_URL", "https://meta-alerts.onrender.com") + "/ctrader"
             if "CONSENT_ACCOUNT_MISSING" in msg:
-                txt = ("⚠️ Consent me <b>LIVE account ka TICK chhoot gaya</b> tha "
-                       "— abhi sirf demo account mila.\n"
-                       "Ye link dobara kholo → login → is baar <b>6170046 pe TICK ✔️</b> "
-                       "karke ALLOW dabao:\n" + page +
-                       "\n(Agar list me 6170046 dikhe hi nahi, us page ka screenshot bhejo)")
+                txt = ("⚠️ Permission page pe <b>6170046 list me hi nahi</b> dikh raha "
+                       "— live account abhi cTrader ID se link nahi hua.\n\n"
+                       "<b>FIX (2 min):</b>\n"
+                       "1. icmarkets.com → Client Area kholo\n"
+                       "2. Account <b>6170046</b> ke paas <b>cTrader / Trade</b> button dabao "
+                       "(ek baar web cTrader kholna hai — isse account cTrader ID pe activate hoga)\n"
+                       "3. Phir ye link dobara kholo → ab 6170046 dikhega → TICK ✔️ + Allow:\n"
+                       + page + "\n\n"
+                       "Phir bhi na dikhe → IC Markets <b>24/7 live chat</b> pe likho: "
+                       "\"My cTrader live account 6170046 is not linked to my cTrader ID\"")
             else:
                 txt = ("🔑 cTrader permission expire ho gayi.\n"
                        "Is link pe tap karke <b>ALLOW ACCESS</b> dabao — "
