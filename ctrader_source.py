@@ -157,6 +157,9 @@ class CTraderSource:
             return False
         try:
             self.access_token = self._refresh_and_persist(rt)
+            # in-memory env bhi update karo — warna fresh CTraderSource dobara
+            # purana (ab dead) token padhega
+            os.environ["CTRADER_ACCESS_TOKEN"] = self.access_token
             return True
         except Exception as exc:  # noqa: BLE001
             log.error("Refresh failed: %s", exc)
@@ -243,14 +246,19 @@ class CTraderSource:
                     self._fatal = "access token se koi account nahi mila"
                     self._authed.set()
                     return
-                # tera login number (10089341) match karo, warna pehla lo
+                # tera login number match karo — list me nahi toh consent me
+                # us account ka TICK chhota tha. Demo pe chupchaap girne se
+                # live host pe CANT_ROUTE + refresh churn hota hai -> ERROR do.
                 pick = None
                 for aid, login, _t in accs:
                     if login and int(login) == self.account_id:
                         pick = aid
                         break
                 if pick is None:
-                    pick = accs[0][0]
+                    self._fatal = ("CONSENT_ACCOUNT_MISSING login=%s consented=%s"
+                                   % (self.account_id, [l for _, l, _ in accs]))
+                    self._authed.set()
+                    return
                 self.account_id = int(pick)
                 log.info("Account pick: ctidTraderAccountId=%s", pick)
                 req = M.ProtoOAAccountAuthReq()

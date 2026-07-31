@@ -329,6 +329,8 @@ def run_ctrader(symbols, interval) -> None:
     try:
         src.bootstrap(symbols)
     except RuntimeError as exc:
+        if "CONSENT_ACCOUNT_MISSING" in str(exc):
+            raise   # refresh se consent fix nahi hoti — seedha upar (re-OAuth)
         log.warning("cTrader boot fail (%s) — refresh karke retry", exc)
         if not src.try_refresh_once():
             raise
@@ -511,12 +513,20 @@ def run() -> None:
             # -> handler naye tokens save karke auto-deploy -> fresh boot.
             page = os.environ.get(
                 "OAUTH_BASE_URL", "https://meta-alerts.onrender.com") + "/ctrader"
-            log.error("cTrader tokens dead — re-OAuth chahiye. Page zinda: %s", page)
+            if "CONSENT_ACCOUNT_MISSING" in msg:
+                txt = ("⚠️ Consent me <b>LIVE account ka TICK chhoot gaya</b> tha "
+                       "— abhi sirf demo account mila.\n"
+                       "Ye link dobara kholo → login → is baar <b>6170046 pe TICK ✔️</b> "
+                       "karke ALLOW dabao:\n" + page +
+                       "\n(Agar list me 6170046 dikhe hi nahi, us page ka screenshot bhejo)")
+            else:
+                txt = ("🔑 cTrader permission expire ho gayi.\n"
+                       "Is link pe tap karke <b>ALLOW ACCESS</b> dabao — "
+                       "2 min me LIVE feed wapas:\n" + page +
+                       "\n(iPhone Safari me hi kholo)")
+            log.error("cTrader auth/consent issue — re-OAuth chahiye. Page zinda: %s", page)
             try:
-                send_telegram(
-                    "🔑 cTrader permission expire ho gayi.\n"
-                    "Is link pe tap karke <b>ALLOW ACCESS</b> dabao — 2 min me LIVE feed wapas:\n"
-                    + page + "\n(iPhone Safari me hi kholo)", time.time())
+                send_telegram(txt, time.time())
             except Exception as send_exc:  # noqa: BLE001
                 log.warning("telegram send fail: %s", send_exc)
             while True:
