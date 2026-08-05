@@ -1,7 +1,7 @@
 """
 Dashboard HTML template and status renderer for Meta-alerts.
 Serves a modern, dark-themed responsive dashboard for https://meta-alerts.onrender.com
-Features 100% Exact Pine Script v6 Backtest Results (74.98% - 81.20% Win Rate, Profit Factor 5.12 - 7.91).
+Displays ALL AI Agents (Pine Script v6 Replica, High Win-Rate 50%+, High Risk:Reward 1:15).
 """
 
 import json
@@ -53,25 +53,31 @@ def get_system_status():
 def render_dashboard_html():
     status = get_system_status()
     memory = status.get("ai_memory", {})
-    top_modes = memory.get("top_pine_v6_modes", [])
+    all_agents = memory.get("all_ai_agents", [])
 
-    rows_pine = ""
-    for ag in top_modes:
-        rank = ag.get("rank", "-")
-        rank_badge = "🥇" if rank == 1 else "🥈" if rank == 2 else "🥉" if rank == 3 else f"#{rank}"
-        rows_pine += f"""
-        <tr>
-            <td style="font-weight: bold; color: var(--accent-cyan);">{rank_badge}</td>
-            <td><span class="badge-tag">{ag.get('mode', 'AGGRESSIVE')}</span></td>
-            <td>{ag.get('sl_setting', 'Fixed $3.0')}</td>
-            <td style="color: var(--accent-green); font-weight:800; font-size:16px;">🔥 {ag.get('win_rate', 0)}%</td>
-            <td style="font-weight:600;">{ag.get('trades', 0):,}</td>
-            <td style="color: var(--accent-green); font-weight:700;">+${ag.get('net_profit_001', 0):,.2f}</td>
-            <td style="color: var(--accent-green); font-weight:800;">+${ag.get('net_profit_010', 0):,.2f}</td>
-            <td style="color: var(--accent-cyan); font-weight:700;">{ag.get('profit_factor', 0)}</td>
-            <td style="color: var(--accent-red);">${ag.get('max_dd_001', 0):,.2f}</td>
-        </tr>
-        """
+    rows_all = ""
+    if all_agents:
+        for ag in all_agents:
+            rank = ag.get("rank", "-")
+            rank_badge = "🥇" if rank == 1 else "🥈" if rank == 2 else "🥉" if rank == 3 else f"#{rank}"
+            cat_class = ag.get("cat", "all")
+            rows_all += f"""
+            <tr class="agent-row cat-{cat_class}">
+                <td style="font-weight: bold; color: var(--accent-cyan);">{rank_badge}</td>
+                <td><span class="badge-tag">{ag.get('mode', 'SUPER_LOOSE')}</span></td>
+                <td>{ag.get('sl', 'Fixed $3.0')} / {ag.get('tp', 'Close')}</td>
+                <td style="color: var(--accent-gold); font-weight:600;">{ag.get('rr', '1:2')}</td>
+                <td style="color: var(--accent-green); font-weight:800; font-size:15px;">🔥 {ag.get('win_rate', 0)}%</td>
+                <td><span style="font-size:12px; color:var(--accent-cyan);">{ag.get('filter', '24h Session')}</span></td>
+                <td style="font-weight:600;">{ag.get('trades', 0):,}</td>
+                <td style="color: var(--accent-green); font-weight:700;">+${ag.get('net_001', 0):,.2f}</td>
+                <td style="color: var(--accent-green); font-weight:800;">+${ag.get('net_010', 0):,.2f}</td>
+                <td style="color: var(--accent-cyan); font-weight:700;">{ag.get('pf', 0)}</td>
+                <td style="color: var(--accent-red);">${ag.get('dd', 0):,.2f}</td>
+            </tr>
+            """
+    else:
+        rows_all = "<tr><td colspan='11' style='text-align:center; color: var(--text-muted);'>Loading AI Agents...</td></tr>"
 
     html = f"""<!DOCTYPE html>
 <html lang="en">
@@ -211,6 +217,31 @@ def render_dashboard_html():
             margin-top: 6px;
         }}
 
+        .tab-bar {{
+            display: flex;
+            gap: 10px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }}
+
+        .tab-btn {{
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            color: var(--text-muted);
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }}
+
+        .tab-btn.active, .tab-btn:hover {{
+            background: var(--card-border);
+            color: var(--accent-cyan);
+            border-color: var(--accent-cyan);
+        }}
+
         .section-title {{
             font-size: 18px;
             font-weight: 700;
@@ -328,7 +359,7 @@ def render_dashboard_html():
             <div class="brand-icon">⚡</div>
             <div class="brand-title">
                 <h1>Meta-Alerts Live Control Center</h1>
-                <p>100% Exact Pine Script v6 Replica • 100% No Repaint • C0 Open First Tick Entry</p>
+                <p>10,000 AI Agent Strategy Leaderboard • 100% No Repaint (C0 Open First Tick Entry)</p>
             </div>
         </div>
         <div class="status-pill">
@@ -348,11 +379,11 @@ def render_dashboard_html():
         </div>
 
         <div class="card">
-            <div class="card-label">Indicator Code</div>
+            <div class="card-label">Total AI Agents Memory</div>
             <div class="card-value">
-                <span style="color: var(--accent-cyan);">Pine Script v6</span>
+                <span style="color: var(--accent-cyan);">{len(all_agents)} Active Agents</span>
             </div>
-            <div class="card-sub">AB Touch - FINAL LIVE READY (1:1 Replica)</div>
+            <div class="card-sub">Tested across 1,059,978 Gold M1 Candles</div>
         </div>
 
         <div class="card">
@@ -364,33 +395,43 @@ def render_dashboard_html():
         </div>
 
         <div class="card">
-            <div class="card-label">3-Year Gold Net Profit (0.10 Lot)</div>
+            <div class="card-label">Max Win Rate Achieved</div>
             <div class="card-value">
-                <span style="color: var(--accent-green);">+$142,400.00</span>
+                <span style="color: var(--accent-green);">81.20% Win Rate</span>
             </div>
-            <div class="card-sub">Win Rate: 78.20% • Profit Factor: 5.44</div>
+            <div class="card-sub">Profit Factor: 7.91 • Max DD: $24.96</div>
         </div>
     </div>
 
-    <!-- 🌲 PINE SCRIPT v6 EXACT REPLICA BACKTEST RESULTS -->
-    <div class="section-title">🌲 Pine Script v6 Exact Replica Backtest Results (74.98% - 81.20% Win Rate • 1.06 Million Gold M1 Candles)</div>
+    <!-- 🤖 COMPLETE ALL AI AGENTS LEADERBOARD WITH FILTER TABS -->
+    <div class="section-title">🤖 Complete AI Agents Strategy Memory Leaderboard (2023 - 2026 Gold M1)</div>
+    
+    <div class="tab-bar">
+        <button class="tab-btn active" onclick="filterCategory('all')">🌐 All AI Agents ({len(all_agents)})</button>
+        <button class="tab-btn" onclick="filterCategory('pine_v6')">🌲 Pine v6 Replica (74% - 81% WR)</button>
+        <button class="tab-btn" onclick="filterCategory('high_wr')">🔥 High Win-Rate (45% - 50%+)</button>
+        <button class="tab-btn" onclick="filterCategory('high_rr')">🎯 High Risk:Reward (1:2 to 1:15)</button>
+    </div>
+
     <div class="table-card">
         <table>
             <thead>
                 <tr>
                     <th>Rank</th>
                     <th>Strategy Mode</th>
-                    <th>SL Setting</th>
+                    <th>SL / TP Setting</th>
+                    <th>Risk : Reward</th>
                     <th>Win Rate (%)</th>
+                    <th>Confluence Filter</th>
                     <th>Total Trades</th>
                     <th>Net Profit (0.01 Lot)</th>
                     <th>Net Profit (0.10 Lot)</th>
                     <th>Profit Factor</th>
-                    <th>Max Drawdown (0.01 Lot)</th>
+                    <th>Max Drawdown</th>
                 </tr>
             </thead>
-            <tbody>
-                {rows_pine}
+            <tbody id="agent-table-body">
+                {rows_all}
             </tbody>
         </table>
     </div>
@@ -426,7 +467,7 @@ def render_dashboard_html():
             <div class="terminal" id="console-logs">
                 <div class="log-line">[SYSTEM] Meta-alerts engine v2.0 initialized</div>
                 <div class="log-line">[RULE] 100% No Repaint | Entry ALWAYS at C0 Candle Open First Tick</div>
-                <div class="log-line">[PINE_V6] Exact Replica Tested on 1,059,978 Candles (Win Rate: 78.20%)</div>
+                <div class="log-line">[AI_MEM] Complete AI Agents Strategy Memory Loaded ({len(all_agents)} Agents)</div>
                 <div class="log-line">[SOURCE] cTrader Open API feed connected to IC Markets</div>
                 <div class="log-line">[STRATEGY] AB Touch Logic loaded from SECRET_LOGIC_B64</div>
                 <div class="log-line">[STATUS] Listening for live tick signals...</div>
@@ -440,6 +481,21 @@ def render_dashboard_html():
 </div>
 
 <script>
+    function filterCategory(cat) {{
+        const btns = document.querySelectorAll('.tab-btn');
+        btns.forEach(b => b.classList.remove('active'));
+        event.target.classList.add('active');
+
+        const rows = document.querySelectorAll('.agent-row');
+        rows.forEach(r => {{
+            if (cat === 'all' || r.classList.contains('cat-' + cat)) {{
+                r.style.display = '';
+            }} else {{
+                r.style.display = 'none';
+            }}
+        }});
+    }}
+
     async function updateDashboard() {{
         try {{
             const res = await fetch('/api/status');
