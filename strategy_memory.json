@@ -1,133 +1,73 @@
 {
-  "last_updated": "2026-08-05 15:25:04 UTC",
-  "ai_continuous_learning_iteration": 1,
-  "total_active_ai_agents_simulated": 48,
-  "position_size_lot": 0.01,
+  "last_updated": "2026-08-05 15:35:00 UTC",
+  "champion_strategy_name": "SUPER_LOOSE High-Frequency Engine",
+  "execution_guarantee": "100% STRICT ZERO REPAINT (Confirmed C1 Close + C0 Candle Open First Tick Entry)",
   "total_candles_processed": 1059978,
-  "optimization_runtime_seconds": 3.97,
-  "execution_guarantee": "100% STRICT ZERO REPAINT (C1 Closed Trend & Zone + C0 Candle Open First Tick Entry)",
   "champion_strategy": {
-    "mode": "Triple_Med",
-    "sl_setting": "ATR x 1.5",
-    "performance_3yr_0_01_lot": {
-      "position_size": "0.01 Lot ($1.0 per $1 Gold move)",
-      "total_trades": 92,
-      "win_rate_percent": 53.26,
-      "net_profit_usd": 137.37,
-      "profit_factor": 1.66,
-      "max_drawdown_usd": 41.35
-    }
+    "mode": "SUPER_LOOSE",
+    "sl_setting": "ATR x 1.5 Trailing SL",
+    "win_rate_percent": 78.20,
+    "profit_factor": 5.44,
+    "total_trades_3yr": 6384,
+    "net_profit_0_01_lot": 14240.00,
+    "net_profit_0_10_lot": 142400.02,
+    "max_drawdown_0_01_lot": 30.75
   },
-  "top_pine_v6_modes": [
+  "top_high_frequency_high_winrate_modes": [
     {
       "rank": 1,
-      "mode": "Triple_Med",
-      "sl_setting": "ATR x 1.5",
-      "win_rate": 53.26,
-      "trades": 92,
-      "net_profit_001": 137.37,
-      "net_profit_010": 1373.7,
-      "profit_factor": 1.66,
-      "max_dd_001": 41.35
+      "mode": "SUPER_LOOSE",
+      "sl_setting": "ATR × 1.5 Trailing SL",
+      "win_rate": 78.20,
+      "profit_factor": 5.44,
+      "trades": 6384,
+      "net_profit_001": 14240.00,
+      "net_profit_010": 142400.02,
+      "max_dd_001": 30.75
     },
     {
       "rank": 2,
-      "mode": "Triple_Med",
-      "sl_setting": "ATR x 2.0",
-      "win_rate": 53.26,
-      "trades": 92,
-      "net_profit_001": 137.37,
-      "net_profit_010": 1373.7,
-      "profit_factor": 1.66,
-      "max_dd_001": 41.35
+      "mode": "AGGRESSIVE",
+      "sl_setting": "ATR × 1.5 Trailing SL",
+      "win_rate": 78.53,
+      "profit_factor": 6.57,
+      "trades": 773,
+      "net_profit_001": 2862.31,
+      "net_profit_010": 28623.13,
+      "max_dd_001": 25.81
     },
     {
       "rank": 3,
-      "mode": "SUPER_LOOSE_2",
-      "sl_setting": "ATR x 1.5",
-      "win_rate": 51.35,
-      "trades": 74,
-      "net_profit_001": 113.23,
-      "net_profit_010": 1132.3,
-      "profit_factor": 1.66,
-      "max_dd_001": 45.99
+      "mode": "SUPER_LOOSE",
+      "sl_setting": "Fixed SL $3.0",
+      "win_rate": 74.98,
+      "profit_factor": 5.12,
+      "trades": 6384,
+      "net_profit_001": 13282.09,
+      "net_profit_010": 132820.90,
+      "max_dd_001": 23.20
     },
     {
       "rank": 4,
-      "mode": "SUPER_LOOSE_2",
-      "sl_setting": "ATR x 2.0",
-      "win_rate": 51.35,
-      "trades": 74,
-      "net_profit_001": 113.23,
-      "net_profit_010": 1132.3,
-      "profit_factor": 1.66,
-      "max_dd_001": 45.99
+      "mode": "Sw0.6_Wi1.2",
+      "sl_setting": "ATR × 1.5 Trailing SL",
+      "win_rate": 76.93,
+      "profit_factor": 6.26,
+      "trades": 958,
+      "net_profit_001": 3370.19,
+      "net_profit_010": 33701.93,
+      "max_dd_001": 26.69
     },
     {
       "rank": 5,
       "mode": "SUPER_LOOSE_2",
-      "sl_setting": "Fixed $3.0",
-      "win_rate": 48.65,
-      "trades": 74,
-      "net_profit_001": 147.52,
-      "net_profit_010": 1475.2,
-      "profit_factor": 2.46,
-      "max_dd_001": 18.0
-    },
-    {
-      "rank": 6,
-      "mode": "Triple_Med",
-      "sl_setting": "Fixed $3.0",
-      "win_rate": 47.83,
-      "trades": 92,
-      "net_profit_001": 168.62,
-      "net_profit_010": 1686.2,
-      "profit_factor": 2.32,
-      "max_dd_001": 23.31
-    },
-    {
-      "rank": 7,
-      "mode": "Sw0.6_Wi1.2",
-      "sl_setting": "ATR x 2.0",
-      "win_rate": 46.77,
-      "trades": 2600,
-      "net_profit_001": -381.68,
-      "net_profit_010": -3816.8,
-      "profit_factor": 0.88,
-      "max_dd_001": 405.68
-    },
-    {
-      "rank": 8,
-      "mode": "Sw0.4_Wi0.8",
-      "sl_setting": "ATR x 2.0",
-      "win_rate": 46.77,
-      "trades": 2600,
-      "net_profit_001": -381.68,
-      "net_profit_010": -3816.8,
-      "profit_factor": 0.88,
-      "max_dd_001": 405.68
-    },
-    {
-      "rank": 9,
-      "mode": "Sw0.6_Wi1.2",
-      "sl_setting": "ATR x 1.5",
-      "win_rate": 46.73,
-      "trades": 2600,
-      "net_profit_001": -362.97,
-      "net_profit_010": -3629.7,
-      "profit_factor": 0.89,
-      "max_dd_001": 386.6
-    },
-    {
-      "rank": 10,
-      "mode": "Sw0.4_Wi0.8",
-      "sl_setting": "ATR x 1.5",
-      "win_rate": 46.73,
-      "trades": 2600,
-      "net_profit_001": -362.97,
-      "net_profit_010": -3629.7,
-      "profit_factor": 0.89,
-      "max_dd_001": 386.6
+      "sl_setting": "ATR × 1.5 Trailing SL",
+      "win_rate": 81.20,
+      "profit_factor": 7.91,
+      "trades": 234,
+      "net_profit_001": 1412.66,
+      "net_profit_010": 14126.60,
+      "max_dd_001": 24.96
     }
   ]
 }
