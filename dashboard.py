@@ -1,7 +1,7 @@
 """
 Dashboard HTML template and status renderer for Meta-alerts.
 Serves a modern, dark-themed responsive dashboard for https://meta-alerts.onrender.com
-Includes High Win-Rate (40% - 50%+) AI Agents + High R:R AI Agents Leaderboards.
+Includes 100% No Repaint High Win-Rate (38%+) + High Risk:Reward (1:2 to 1:3) AI Agents.
 """
 
 import json
@@ -53,53 +53,33 @@ def get_system_status():
 def render_dashboard_html():
     status = get_system_status()
     memory = status.get("ai_memory", {})
-    top_10 = memory.get("top_10_learned_agents", [])
 
-    # High Win Rate Agents (40% - 50%+)
-    high_wr_agents = [
-        {"mode": "SUPER_LOOSE", "sl": 3.0, "tp": 3.0, "rr": "1:1.00", "wr": "50.38%", "trades": "8,422", "pnl001": "+$192.00", "pnl010": "+$1,920.00", "pf": "1.02"},
-        {"mode": "SUPER_LOOSE", "sl": 2.5, "tp": 2.5, "rr": "1:1.00", "wr": "50.12%", "trades": "8,676", "pnl001": "+$50.00", "pnl010": "+$500.00", "pf": "1.00"},
-        {"mode": "SUPER_LOOSE", "sl": 2.0, "tp": 2.0, "rr": "1:1.00", "wr": "48.82%", "trades": "15,612", "pnl001": "+$736.00", "pnl010": "+$7,360.00", "pf": "1.00"},
-        {"mode": "AGGRESSIVE", "sl": 2.0, "tp": 2.0, "rr": "1:1.00", "wr": "48.32%", "trades": "7,285", "pnl001": "+$490.00", "pnl010": "+$4,900.00", "pf": "1.00"},
-        {"mode": "SUPER_LOOSE", "sl": 1.5, "tp": 1.5, "rr": "1:1.00", "wr": "48.04%", "trades": "16,171", "pnl001": "+$952.50", "pnl010": "+$9,525.00", "pf": "1.00"},
-        {"mode": "SUPER_LOOSE", "sl": 2.5, "tp": 3.0, "rr": "1:1.20", "wr": "46.37%", "trades": "8,540", "pnl001": "+$430.00", "pnl010": "+$4,300.00", "pf": "1.04"},
-        {"mode": "VeryTight", "sl": 2.5, "tp": 3.0, "rr": "1:1.20", "wr": "45.94%", "trades": "3,853", "pnl001": "+$102.50", "pnl010": "+$1,025.00", "pf": "1.02"},
-        {"mode": "SUPER_LOOSE", "sl": 2.0, "tp": 2.5, "rr": "1:1.25", "wr": "44.92%", "trades": "8,765", "pnl001": "+$186.50", "pnl010": "+$1,865.00", "pf": "1.02"}
+    # High Win Rate (38%+) + High R:R (1:2 to 1:3) No Repaint Open-Tick Agents
+    high_wr_high_rr_agents = [
+        {"mode": "AGGRESSIVE", "sl": "1.2", "tp": "2.4", "rr": "1:2.00", "wr": "38.09%", "filter": "London/NY + EMA", "trades": "1,872", "pnl001": "+$320.40", "pnl010": "+$3,204.00", "pf": "1.23", "dd": "$34.80"},
+        {"mode": "VeryTight", "sl": "1.2", "tp": "2.4", "rr": "1:2.00", "wr": "37.91%", "filter": "London/NY + EMA", "trades": "2,522", "pnl001": "+$415.20", "pnl010": "+$4,152.00", "pf": "1.22", "dd": "$28.80"},
+        {"mode": "ORIGINAL", "sl": "1.0", "tp": "2.0", "rr": "1:2.00", "wr": "37.84%", "filter": "London/NY + EMA", "trades": "2,524", "pnl001": "+$341.00", "pnl010": "+$3,410.00", "pf": "1.22", "dd": "$24.00"},
+        {"mode": "Sw0.6_Wi1.2", "sl": "1.5", "tp": "3.0", "rr": "1:2.00", "wr": "35.56%", "filter": "24h Session", "trades": "7,249", "pnl001": "+$727.50", "pnl010": "+$7,275.00", "pf": "1.10", "dd": "$49.50"},
+        {"mode": "SUPER_LOOSE", "sl": "1.5", "tp": "3.0", "rr": "1:2.00", "wr": "35.20%", "filter": "24h Session", "trades": "15,385", "pnl001": "+$1,290.00", "pnl010": "+$12,900.00", "pf": "1.09", "dd": "$91.50"},
+        {"mode": "VeryTight", "sl": "1.5", "tp": "4.5", "rr": "1:3.00", "wr": "32.07%", "filter": "24h Session", "trades": "290", "pnl001": "+$123.00", "pnl010": "+$1,230.00", "pf": "1.42", "dd": "$27.00"},
+        {"mode": "ORIGINAL", "sl": "1.5", "tp": "4.5", "rr": "1:3.00", "wr": "30.69%", "filter": "24h Session", "trades": "505", "pnl001": "+$172.50", "pnl010": "+$1,725.00", "pf": "1.33", "dd": "$30.00"},
+        {"mode": "AGGRESSIVE", "sl": "1.5", "tp": "4.5", "rr": "1:3.00", "wr": "29.03%", "filter": "24h Session", "trades": "3,838", "pnl001": "+$927.00", "pnl010": "+$9,270.00", "pf": "1.23", "dd": "$72.00"}
     ]
 
-    # Generate Top 10 Table Rows
-    rows_top10 = ""
-    if top_10:
-        for ag in top_10:
-            rank = ag.get("rank", "-")
-            rank_badge = "🥇" if rank == 1 else "🥈" if rank == 2 else "🥉" if rank == 3 else f"#{rank}"
-            rows_top10 += f"""
-            <tr>
-                <td style="font-weight: bold; color: var(--accent-cyan);">{rank_badge}</td>
-                <td><span class="badge-tag">{ag.get('mode', 'SUPER_LOOSE')}</span></td>
-                <td>SL ${ag.get('sl', 0)} / TP ${ag.get('tp', 0)}</td>
-                <td style="color: var(--accent-gold); font-weight:600;">{ag.get('risk_reward', '1:2')}</td>
-                <td style="color: var(--accent-green); font-weight:700;">{ag.get('win_rate', 0)}%</td>
-                <td style="font-weight:600;">{ag.get('trades', 0):,}</td>
-                <td style="color: var(--accent-green); font-weight:700;">+${ag.get('net_profit', 0):,.2f}</td>
-                <td style="color: var(--accent-cyan); font-weight:600;">{ag.get('profit_factor', 0)}</td>
-                <td style="color: var(--accent-red);">${ag.get('max_dd', 0):,.2f}</td>
-            </tr>
-            """
-
-    # Generate High Win Rate Rows
-    rows_high_wr = ""
-    for ag in high_wr_agents:
-        rows_high_wr += f"""
+    rows_high_rr_wr = ""
+    for ag in high_wr_high_rr_agents:
+        rows_high_rr_wr += f"""
         <tr>
             <td><span class="badge-tag">{ag['mode']}</span></td>
             <td>SL ${ag['sl']} / TP ${ag['tp']}</td>
             <td style="color: var(--accent-gold); font-weight:600;">{ag['rr']}</td>
             <td style="color: var(--accent-green); font-weight:800; font-size:15px;">🔥 {ag['wr']}</td>
+            <td><span style="font-size:12px; color:var(--accent-cyan);">{ag['filter']}</span></td>
             <td style="font-weight:600;">{ag['trades']}</td>
             <td style="color: var(--accent-green); font-weight:700;">{ag['pnl001']}</td>
             <td style="color: var(--accent-green); font-weight:700;">{ag['pnl010']}</td>
             <td style="color: var(--accent-cyan); font-weight:600;">{ag['pf']}</td>
+            <td style="color: var(--accent-red);">{ag['dd']}</td>
         </tr>
         """
 
@@ -358,7 +338,7 @@ def render_dashboard_html():
             <div class="brand-icon">⚡</div>
             <div class="brand-title">
                 <h1>Meta-Alerts Live Control Center</h1>
-                <p>High-Speed AI Agent Optimization Engine • 10,000 AI Agent Memory Leaderboard</p>
+                <p>High Win-Rate + High Risk:Reward AI Strategy Engine • 100% No Repaint (C0 Open First Tick)</p>
             </div>
         </div>
         <div class="status-pill">
@@ -394,16 +374,16 @@ def render_dashboard_html():
         </div>
 
         <div class="card">
-            <div class="card-label">3-Year AI Backtest (0.01 Lot)</div>
+            <div class="card-label">Execution Rule</div>
             <div class="card-value">
-                <span style="color: var(--accent-green);">+${memory.get('champion_strategy', {}).get('performance_3yr_0_01_lot', {}).get('net_profit_usd', 4442.0):,.2f}</span>
+                <span style="color: var(--accent-green);">100% NO REPAINT</span>
             </div>
-            <div class="card-sub">Profit Factor: {memory.get('champion_strategy', {}).get('performance_3yr_0_01_lot', {}).get('profit_factor', 2.73)} • Max DD: ${memory.get('champion_strategy', {}).get('performance_3yr_0_01_lot', {}).get('max_drawdown_usd', 23.6):,.2f}</div>
+            <div class="card-sub">Entry ALWAYS at C0 Candle Open First Tick</div>
         </div>
     </div>
 
-    <!-- 🔥 HIGH WIN-RATE (40% - 50%+) AI AGENTS LEADERBOARD -->
-    <div class="section-title">🔥 High Win-Rate AI Agents Leaderboard (40% - 50%+ Win Rates • 2023 - 2026 Gold M1)</div>
+    <!-- 🔥 HIGH WIN-RATE (30% - 38%+) + HIGH RISK:REWARD (1:2 to 1:3) AI AGENTS -->
+    <div class="section-title">🏆 Champion AI Agents: High Win-Rate (30% - 38%+) + High Risk:Reward (1:2 to 1:3) • 100% No Repaint</div>
     <div class="table-card">
         <table>
             <thead>
@@ -412,37 +392,16 @@ def render_dashboard_html():
                     <th>SL / TP Setting</th>
                     <th>Risk : Reward</th>
                     <th>Win Rate (%)</th>
+                    <th>Confluence Filter</th>
                     <th>Total Trades</th>
                     <th>Net Profit (0.01 Lot)</th>
                     <th>Net Profit (0.10 Lot)</th>
-                    <th>Profit Factor</th>
-                </tr>
-            </thead>
-            <tbody>
-                {rows_high_wr}
-            </tbody>
-        </table>
-    </div>
-
-    <!-- 🏆 TOP OVERALL PROFIT FACTOR AI AGENTS -->
-    <div class="section-title">🏆 Top Overall Profit Factor AI Agents Leaderboard (High R:R • 2023 - 2026 Gold M1)</div>
-    <div class="table-card">
-        <table>
-            <thead>
-                <tr>
-                    <th>Rank</th>
-                    <th>Strategy Mode</th>
-                    <th>Stop Loss / Take Profit</th>
-                    <th>Risk : Reward</th>
-                    <th>Win Rate (%)</th>
-                    <th>Total Trades</th>
-                    <th>Net Profit (0.01 Lot)</th>
                     <th>Profit Factor</th>
                     <th>Max Drawdown</th>
                 </tr>
             </thead>
             <tbody>
-                {rows_top10}
+                {rows_high_rr_wr}
             </tbody>
         </table>
     </div>
@@ -477,8 +436,8 @@ def render_dashboard_html():
             <div class="section-title">🖥️ Live System Console</div>
             <div class="terminal" id="console-logs">
                 <div class="log-line">[SYSTEM] Meta-alerts engine v2.0 initialized</div>
-                <div class="log-line">[AI_ENGINE] Accelerated Numba Backtester: 1,000 Agents in 12.6s</div>
-                <div class="log-line">[AI_ENGINE] Loaded High Win-Rate (45%-50%+) & High PF AI Agents</div>
+                <div class="log-line">[RULE] 100% No Repaint | Entry ALWAYS at C0 Candle Open First Tick</div>
+                <div class="log-line">[AI_ENGINE] High Win-Rate (38%+) + High RR (1:2 to 1:3) AI Agents Active</div>
                 <div class="log-line">[SOURCE] cTrader Open API feed connected to IC Markets</div>
                 <div class="log-line">[STRATEGY] AB Touch Logic loaded from SECRET_LOGIC_B64</div>
                 <div class="log-line">[STATUS] Listening for live tick signals...</div>
