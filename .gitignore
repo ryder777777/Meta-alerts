@@ -4,7 +4,11 @@ __pycache__/
 venv/
 .env
 # Data files (keep repository lightweight)
+# General CSV ignored, BUT the data/ folder (3-year Gold M1) IS committed
+# so AI agents have permanent access on every deploy.
 *.csv
+!data/
+!data/*.csv
 uploads/
 /home/user/uploads/
 
