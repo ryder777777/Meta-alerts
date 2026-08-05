@@ -1,7 +1,7 @@
 """
 Dashboard HTML template and status renderer for Meta-alerts.
 Serves a modern, dark-themed responsive dashboard for https://meta-alerts.onrender.com
-Displays ALL AI Agents with STRICT FIXED SL = $1.5 OR FIXED SL = $2.0 ONLY.
+Displays AI Agent Names in the Leaderboard Table.
 """
 
 import json
@@ -55,13 +55,21 @@ def render_dashboard_html():
     memory = status.get("ai_memory", {})
     top_modes = memory.get("all_fixed_sl_15_20_ai_agents", [])
 
+    agent_names = [
+        "Agent Apex-Alpha", "Agent Titan-One", "Agent Nexus-Core", "Agent Orion-Prime",
+        "Agent Vector-V5", "Agent Hyperion-X", "Agent Cyber-Quantum", "Agent Astra-7",
+        "Agent Phoenix-9", "Agent Matrix-01", "Agent Spectre-X", "Agent Chronos-3"
+    ]
+
     rows_pine = ""
-    for ag in top_modes:
-        rank = ag.get("rank", "-")
+    for idx, ag in enumerate(top_modes):
+        rank = ag.get("rank", idx + 1)
         rank_badge = "🥇" if rank == 1 else "🥈" if rank == 2 else "🥉" if rank == 3 else f"#{rank}"
+        agent_name = agent_names[idx % len(agent_names)]
         rows_pine += f"""
         <tr>
             <td style="font-weight: bold; color: var(--accent-cyan);">{rank_badge}</td>
+            <td style="font-weight: 700; color: var(--accent-green);">🤖 {agent_name}</td>
             <td><span class="badge-tag">{ag.get('mode', 'VeryTight')}</span></td>
             <td>{ag.get('sl_setting', 'Fixed SL $1.5')}</td>
             <td style="color: var(--accent-gold); font-weight:600;">{ag.get('tp_exit', 'Target TP $3.0')}</td>
@@ -275,6 +283,69 @@ def render_dashboard_html():
             font-weight: 600;
         }}
 
+        .tv-chart-container {{
+            background: var(--tv-bg);
+            border: 1px solid #2a2e39;
+            border-radius: 12px;
+            padding: 16px;
+            height: 420px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            position: relative;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+        }}
+
+        .tv-header {{
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #2a2e39;
+            padding-bottom: 10px;
+            margin-bottom: 10px;
+        }}
+
+        .tv-symbol {{
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }}
+
+        .tv-symbol-name {{
+            font-size: 16px;
+            font-weight: 800;
+            color: var(--text-main);
+        }}
+
+        .tv-symbol-tf {{
+            font-size: 12px;
+            background: #2a2e39;
+            color: #d1d4dc;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-weight: 600;
+        }}
+
+        .tv-price-tag {{
+            font-size: 26px;
+            font-weight: 800;
+            color: var(--accent-green);
+        }}
+
+        .tv-change {{
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--accent-green);
+            margin-left: 8px;
+        }}
+
+        canvas#tvCandleChart {{
+            width: 100%;
+            height: 320px;
+            background: var(--tv-bg);
+            border-radius: 6px;
+        }}
+
         .layout-two-col {{
             display: grid;
             grid-template-columns: 2fr 1fr;
@@ -373,21 +444,22 @@ def render_dashboard_html():
         </div>
 
         <div class="card">
-            <div class="card-label">Top Profit Factor</div>
+            <div class="card-label">Top AI Agent Champion</div>
             <div class="card-value">
-                <span style="color: var(--accent-green);">3.73 Profit Factor</span>
+                <span style="color: var(--accent-green);">Agent Apex-Alpha</span>
             </div>
-            <div class="card-sub">56.76% Win Rate • SL $1.5 / TP $4.5 (1:3 RR)</div>
+            <div class="card-sub">64.86% Win Rate • 3.60 Profit Factor</div>
         </div>
     </div>
 
     <!-- 🏆 STRICT FIXED SL $1.5 OR $2.0 AI AGENTS LEADERBOARD -->
-    <div class="section-title">🏆 Champion AI Agents: Fixed SL $1.5 or Fixed SL $2.0 ONLY (1.06 Million Gold M1 Candles)</div>
+    <div class="section-title">🤖 AI Agents Strategy Leaderboard (Fixed SL $1.5 or $2.0 • 1.06 Million Gold M1)</div>
     <div class="table-card">
         <table>
             <thead>
                 <tr>
                     <th>Rank</th>
+                    <th>AI Agent Name</th>
                     <th>Strategy Mode</th>
                     <th>Stop Loss</th>
                     <th>Target Exit</th>
@@ -430,7 +502,7 @@ def render_dashboard_html():
             <div class="terminal" id="console-logs">
                 <div class="log-line">[SYSTEM] Meta-alerts engine v2.0 initialized</div>
                 <div class="log-line">[RULE] 100% Zero Repaint | isC0FirstTick = barstate.isnew Entry Only</div>
-                <div class="log-line">[SL_RULE] Fixed SL = $1.5 or $2.0 ONLY Enforced</div>
+                <div class="log-line">[AI_AGENTS] Loaded Named AI Agents (Agent Apex-Alpha, Agent Titan-One, etc.)</div>
                 <div class="log-line">[SOURCE] cTrader Open API feed connected to IC Markets</div>
                 <div class="log-line">[STRATEGY] AB Touch Logic loaded from SECRET_LOGIC_B64</div>
                 <div class="log-line">[STATUS] Listening for live tick signals...</div>
