@@ -54,8 +54,8 @@ DATA_SEARCH_DIRS = [
 # ---- Agent count (Render free tier ke CPU/RAM ko respect karte hue) ----
 # Render free = ~512MB RAM / 0.1 CPU. Har agent ~1.06M candles scan karta hai.
 # AI_AGENTS_PER_GEN env se bina redeploy ke badla ja sakta hai.
-DEFAULT_AGENTS_PER_GEN = int(os.environ.get("AI_AGENTS_PER_GEN", "100"))
-DEFAULT_TOP_N = int(os.environ.get("AI_TOP_N", "50"))
+DEFAULT_AGENTS_PER_GEN = int(os.environ.get("AI_AGENTS_PER_GEN", "30"))
+DEFAULT_TOP_N = int(os.environ.get("AI_TOP_N", "30"))
 
 # Load Dataset in memory
 DATASET = None
@@ -340,7 +340,21 @@ def _seed_memory_from_disk():
 
 def run_continuous_ai_evolution_loop():
     global GENERATION_COUNTER, GLOBAL_AI_MEMORY
-    load_dataset()
+    # ---- ACTIVE-WAIT for data ----
+    # Bina data ke backtest possible nahi. Thread zinda rakho, har 20s data
+    # dhundhte raho. Jaise hi data aata hai (upload/repo), 30 agents chalu.
+    agents_per_gen = DEFAULT_AGENTS_PER_GEN
+    top_n = DEFAULT_TOP_N
+    while DATASET is None:
+        try:
+            load_dataset()
+        except FileNotFoundError as e:
+            print(f"⏳ Waiting for data... ({e}) — retry in 20s")
+            print(f"   Upload via /api/upload-form ya PUT raw CSV to {UPLOAD_DIR}")
+            time.sleep(20)
+        except Exception as exc:  # noqa: BLE001
+            print(f"⚠️  Dataset load error ({exc}) — retry in 20s")
+            time.sleep(20)
 
     # Prewarm JIT
     _ = simulate_agent_genome(OPENS[:1000], HIGHS[:1000], LOWS[:1000], CLOSES[:1000], HOURS[:1000], 0, 1.5, 3.0, 0.3, 0.5, 3.0, 0, False, 0.14, 0.01)
@@ -366,10 +380,6 @@ def run_continuous_ai_evolution_loop():
     # Restart-safe: purane strategy_memory se best genomes load karo (data na khoye)
     _seed_memory_from_disk()
 
-    # Agents per generation — Render free tier ke liye auto-scaling
-    agents_per_gen = DEFAULT_AGENTS_PER_GEN
-    # RAM guard: free tier ~512MB, numba @njit 1M candles ~ per-agent few MB
-    top_n = DEFAULT_TOP_N
     print(f"🤖 24/7 Continuous AI Evolutionary Agent Daemon Started! "
           f"({agents_per_gen} agents/generation | top {top_n} saved)")
 
