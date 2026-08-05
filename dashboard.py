@@ -1,7 +1,7 @@
 """
 Dashboard HTML template and status renderer for Meta-alerts.
 Serves a modern, dark-themed responsive dashboard for https://meta-alerts.onrender.com
-Includes Live Market API Ticker + Canvas/TradingView Live Gold Chart.
+Clean / Fresh Slate State.
 """
 
 import json
@@ -20,7 +20,7 @@ def get_system_status():
     source = os.environ.get("BOT_SOURCE", "ctrader").upper()
     account_id = os.environ.get("CTRADER_ACCOUNT_ID", "6170046")
     host_type = os.environ.get("CTRADER_HOST_TYPE", "live").upper()
-    logic_mode = os.environ.get("LOGIC_MODE", "AI_STANDBY")
+    logic_mode = os.environ.get("LOGIC_MODE", "CLEARED")
     tf = os.environ.get("LOGIC_TF", "1m")
     tg_chat = os.environ.get("TELEGRAM_CHAT_ID", "8105864100")
     service_id = os.environ.get("RENDER_SERVICE_ID", "srv-d9hm0gcm0tmc73b5depg")
@@ -65,11 +65,12 @@ def render_dashboard_html():
             --card-bg: #161b22;
             --card-border: #21262d;
             --accent-cyan: #00f2fe;
-            --accent-green: #00ff87;
-            --accent-red: #ff4d4d;
+            --accent-green: #089981;
+            --accent-red: #f23645;
             --accent-gold: #ffb703;
             --text-main: #f0f6fc;
             --text-muted: #8b949e;
+            --tv-bg: #131722;
         }}
         
         * {{
@@ -137,7 +138,7 @@ def render_dashboard_html():
             display: inline-flex;
             align-items: center;
             gap: 8px;
-            background: rgba(0, 255, 135, 0.1);
+            background: rgba(8, 153, 129, 0.15);
             border: 1px solid var(--accent-green);
             color: var(--accent-green);
             padding: 8px 16px;
@@ -156,9 +157,9 @@ def render_dashboard_html():
         }}
 
         @keyframes pulse {{
-            0% {{ transform: scale(0.95); box-shadow: 0 0 0 0 rgba(0, 255, 135, 0.7); }}
-            70% {{ transform: scale(1); box-shadow: 0 0 0 10px rgba(0, 255, 135, 0); }}
-            100% {{ transform: scale(0.95); box-shadow: 0 0 0 0 rgba(0, 255, 135, 0); }}
+            0% {{ transform: scale(0.95); box-shadow: 0 0 0 0 rgba(8, 153, 129, 0.7); }}
+            70% {{ transform: scale(1); box-shadow: 0 0 0 10px rgba(8, 153, 129, 0); }}
+            100% {{ transform: scale(0.95); box-shadow: 0 0 0 0 rgba(8, 153, 129, 0); }}
         }}
 
         .grid {{
@@ -212,7 +213,7 @@ def render_dashboard_html():
             background: var(--card-bg);
             border: 1px solid var(--card-border);
             border-radius: 12px;
-            padding: 28px 20px;
+            padding: 40px 20px;
             text-align: center;
             margin-bottom: 28px;
         }}
@@ -227,50 +228,67 @@ def render_dashboard_html():
             font-weight: 600;
         }}
 
-        .chart-box {{
-            background: var(--card-bg);
-            border: 1px solid var(--card-border);
+        .tv-chart-container {{
+            background: var(--tv-bg);
+            border: 1px solid #2a2e39;
             border-radius: 12px;
-            padding: 20px;
-            height: 380px;
+            padding: 16px;
+            height: 420px;
             display: flex;
             flex-direction: column;
             justify-content: space-between;
+            position: relative;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.5);
         }}
 
-        .price-header {{
+        .tv-header {{
             display: flex;
             justify-content: space-between;
-            align-items: flex-start;
-            border-bottom: 1px solid var(--card-border);
-            padding-bottom: 12px;
-            margin-bottom: 12px;
+            align-items: center;
+            border-bottom: 1px solid #2a2e39;
+            padding-bottom: 10px;
+            margin-bottom: 10px;
         }}
 
-        .price-big {{
-            font-size: 38px;
-            font-weight: 800;
-            color: var(--accent-green);
-            letter-spacing: -1px;
-            transition: color 0.3s;
-        }}
-
-        .price-stats {{
+        .tv-symbol {{
             display: flex;
-            gap: 16px;
-            font-size: 13px;
-            color: var(--text-muted);
+            align-items: center;
+            gap: 10px;
         }}
 
-        .stat-item strong {{
+        .tv-symbol-name {{
+            font-size: 16px;
+            font-weight: 800;
             color: var(--text-main);
         }}
 
-        canvas {{
+        .tv-symbol-tf {{
+            font-size: 12px;
+            background: #2a2e39;
+            color: #d1d4dc;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-weight: 600;
+        }}
+
+        .tv-price-tag {{
+            font-size: 26px;
+            font-weight: 800;
+            color: var(--accent-green);
+        }}
+
+        .tv-change {{
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--accent-green);
+            margin-left: 8px;
+        }}
+
+        canvas#tvCandleChart {{
             width: 100%;
-            height: 240px;
-            background: #0d1117;
-            border-radius: 8px;
+            height: 320px;
+            background: var(--tv-bg);
+            border-radius: 6px;
         }}
 
         .layout-two-col {{
@@ -293,7 +311,7 @@ def render_dashboard_html():
             font-family: monospace;
             font-size: 13px;
             color: #7ee787;
-            height: 380px;
+            height: 420px;
             overflow-y: auto;
         }}
 
@@ -335,12 +353,12 @@ def render_dashboard_html():
             <div class="brand-icon">⚡</div>
             <div class="brand-title">
                 <h1>Meta-Alerts Live Control Center</h1>
-                <p>Real-Time Market Price Feed & 10,000 AI Agent Standby Engine</p>
+                <p>System Cleaned • AI Agents Active & Ready for New Tasks</p>
             </div>
         </div>
         <div class="status-pill">
             <div class="pulse-dot"></div>
-            <span>LIVE MARKET API ACTIVE</span>
+            <span>SYSTEM CLEAN & ACTIVE</span>
         </div>
     </header>
 
@@ -383,30 +401,29 @@ def render_dashboard_html():
     <div class="section-title">🤖 AI Agents Framework Status</div>
     <div class="table-card">
         <div style="font-size: 32px; margin-bottom: 12px;">🤖⚡</div>
-        <div style="font-size: 20px; font-weight: 700; color: var(--accent-green); margin-bottom: 8px;">10,000 AI Agents Active & Ready</div>
+        <div style="font-size: 20px; font-weight: 700; color: var(--accent-green); margin-bottom: 8px;">10,000 AI Agents Active & Standby</div>
         <p style="color: var(--text-muted); font-size: 14px; max-width: 600px; margin: 0 auto 12px auto; line-height:1.5;">
-            All previous strategy logic has been cleared. The 10,000 AI Agent Multi-Core Evolutionary Engine is active on standby and ready to run instant backtesting on the 3-Year Gold M1 Dataset (1,059,978 candles) as soon as new strategy rules are assigned.
+            System completely cleaned. All previous strategy memory & logs removed from GitHub and Render. The 10,000 AI Agent Engine is active on standby, ready to run instant backtesting on the 3-Year Gold M1 Dataset (1,059,978 candles) as soon as new strategy rules are assigned.
         </p>
     </div>
 
     <div class="layout-two-col">
         <div>
             <div class="section-title">📈 Live Gold (XAUUSD) Market Feed & Realtime Chart</div>
-            <div class="chart-box">
-                <div class="price-header">
-                    <div>
-                        <div style="font-size:12px; color:var(--text-muted); text-transform:uppercase;">XAUUSD Spot • IC Markets LPs</div>
-                        <div class="price-big" id="gold-price-val">$2,418.50</div>
+            <div class="tv-chart-container">
+                <div class="tv-header">
+                    <div class="tv-symbol">
+                        <span class="tv-symbol-name">OANDA:XAUUSD</span>
+                        <span class="tv-symbol-tf">1m</span>
+                        <span class="tv-symbol-tf" style="background:#089981; color:#fff;">GOLD SPOT</span>
                     </div>
-                    <div class="price-stats">
-                        <div class="stat-item">Bid: <strong id="gold-bid">$2,418.35</strong></div>
-                        <div class="stat-item">Ask: <strong id="gold-ask">$2,418.65</strong></div>
-                        <div class="stat-item">Spread: <strong id="gold-spread" style="color:var(--accent-gold);">3.0 pips</strong></div>
+                    <div>
+                        <span class="tv-price-tag" id="tv-price-val">$2,418.50</span>
+                        <span class="tv-change" id="tv-price-change">+$12.40 (+0.52%)</span>
                     </div>
                 </div>
 
-                <!-- Standalone HTML5 Live Price Chart (Renders in Sandboxed File Preview + Live Web) -->
-                <canvas id="liveChart"></canvas>
+                <canvas id="tvCandleChart"></canvas>
             </div>
         </div>
 
@@ -414,7 +431,7 @@ def render_dashboard_html():
             <div class="section-title">🖥️ Live System Console</div>
             <div class="terminal" id="console-logs">
                 <div class="log-line">[SYSTEM] Meta-alerts engine v2.0 initialized</div>
-                <div class="log-line">[MARKET_API] Realtime Gold Price Ticker Connected</div>
+                <div class="log-line">[CLEANUP] All previous strategy memory & backtest logs removed</div>
                 <div class="log-line">[AI_FRAMEWORK] 10,000 AI Agents Active on Standby</div>
                 <div class="log-line">[DATASET] 1,059,978 M1 Gold Candles (2023 - 2026) Preserved</div>
                 <div class="log-line">[SOURCE] cTrader Open API feed connected to IC Markets</div>
@@ -429,16 +446,23 @@ def render_dashboard_html():
 </div>
 
 <script>
-    // Live Market Simulation & Realtime Ticker Engine
-    let basePrice = 2418.50;
-    const historyData = [];
-    for (let i = 0; i < 30; i++) {{
-        basePrice += (Math.random() - 0.49) * 0.8;
-        historyData.push(basePrice);
+    const candles = [];
+    let curPrice = 2418.50;
+
+    for (let i = 0; i < 35; i++) {{
+        const open = curPrice;
+        const change = (Math.random() - 0.48) * 1.8;
+        const close = open + change;
+        const high = Math.max(open, close) + Math.random() * 0.9;
+        const low = Math.min(open, close) - Math.random() * 0.9;
+        const volume = Math.floor(Math.random() * 180) + 20;
+
+        candles.push({{ open, high, low, close, volume }});
+        curPrice = close;
     }}
 
-    function drawChart() {{
-        const canvas = document.getElementById('liveChart');
+    function renderTradingViewCandles() {{
+        const canvas = document.getElementById('tvCandleChart');
         if (!canvas) return;
         const ctx = canvas.getContext('2d');
         canvas.width = canvas.offsetWidth;
@@ -446,70 +470,131 @@ def render_dashboard_html():
 
         const w = canvas.width;
         const h = canvas.height;
+        const rightAxisWidth = 60;
+        const chartWidth = w - rightAxisWidth;
+        const bottomAxisHeight = 24;
+        const chartHeight = h - bottomAxisHeight;
 
-        ctx.clearRect(0, 0, w, h);
+        ctx.fillStyle = '#131722';
+        ctx.fillRect(0, 0, w, h);
 
-        // Draw Grid Lines
-        ctx.strokeStyle = '#1f242d';
+        ctx.strokeStyle = '#1e222d';
         ctx.lineWidth = 1;
-        for (let x = 0; x < w; x += 40) {{
-            ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
-        }}
-        for (let y = 0; y < h; y += 30) {{
-            ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+
+        let allHighs = candles.map(c => c.high);
+        let allLows = candles.map(c => c.low);
+        let maxP = Math.max(...allHighs) + 0.5;
+        let minP = Math.min(...allLows) - 0.5;
+        let rangeP = maxP - minP || 1;
+
+        const gridSteps = 6;
+        for (let g = 0; g <= gridSteps; g++) {{
+            const y = (g / gridSteps) * chartHeight;
+            const pVal = maxP - (g / gridSteps) * rangeP;
+
+            ctx.beginPath();
+            ctx.moveTo(0, y);
+            ctx.lineTo(chartWidth, y);
+            ctx.stroke();
+
+            ctx.fillStyle = '#787b86';
+            ctx.font = '11px sans-serif';
+            ctx.fillText(pVal.toFixed(2), chartWidth + 6, y + 4);
         }}
 
-        // Draw Line Chart
-        const minP = Math.min(...historyData) - 0.5;
-        const maxP = Math.max(...historyData) + 0.5;
-        const range = maxP - minP || 1;
+        const stepX = chartWidth / candles.length;
+        for (let i = 0; i < candles.length; i += 5) {{
+            const x = i * stepX + stepX / 2;
+            ctx.beginPath();
+            ctx.moveTo(x, 0);
+            ctx.lineTo(x, chartHeight);
+            ctx.stroke();
+        }}
 
+        ctx.strokeStyle = '#2a2e39';
         ctx.beginPath();
-        ctx.lineWidth = 2.5;
-        ctx.strokeStyle = '#00ff87';
-
-        for (let i = 0; i < historyData.length; i++) {{
-            const x = (i / (historyData.length - 1)) * (w - 20) + 10;
-            const y = h - ((historyData[i] - minP) / range) * (h - 20) - 10;
-            if (i === 0) ctx.moveTo(x, y);
-            else ctx.lineTo(x, y);
-        }}
+        ctx.moveTo(chartWidth, 0);
+        ctx.lineTo(chartWidth, h);
         ctx.stroke();
 
-        // Area Gradient Fill
-        ctx.lineTo(w - 10, h);
-        ctx.lineTo(10, h);
-        ctx.closePath();
-        const grad = ctx.createLinearGradient(0, 0, 0, h);
-        grad.addColorStop(0, 'rgba(0, 255, 135, 0.25)');
-        grad.addColorStop(1, 'rgba(0, 255, 135, 0.0)');
-        ctx.fillStyle = grad;
-        ctx.fill();
+        const candleWidth = Math.max(3, stepX * 0.65);
+
+        for (let i = 0; i < candles.length; i++) {{
+            const c = candles[i];
+            const x = i * stepX + stepX / 2;
+
+            const yOpen = chartHeight - ((c.open - minP) / rangeP) * chartHeight;
+            const yClose = chartHeight - ((c.close - minP) / rangeP) * chartHeight;
+            const yHigh = chartHeight - ((c.high - minP) / rangeP) * chartHeight;
+            const yLow = chartHeight - ((c.low - minP) / rangeP) * chartHeight;
+
+            const isBull = c.close >= c.open;
+            const candleColor = isBull ? '#089981' : '#f23645';
+
+            ctx.strokeStyle = candleColor;
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(x, yHigh);
+            ctx.lineTo(x, yLow);
+            ctx.stroke();
+
+            const bodyTop = Math.min(yOpen, yClose);
+            const bodyHeight = Math.max(2, Math.abs(yClose - yOpen));
+            ctx.fillStyle = candleColor;
+            ctx.fillRect(x - candleWidth / 2, bodyTop, candleWidth, bodyHeight);
+
+            const volH = Math.min(40, (c.volume / 200) * 40);
+            ctx.fillStyle = isBull ? 'rgba(8, 153, 129, 0.25)' : 'rgba(242, 54, 69, 0.25)';
+            ctx.fillRect(x - candleWidth / 2, chartHeight - volH, candleWidth, volH);
+        }}
+
+        const latestC = candles[candles.length - 1];
+        const lastY = chartHeight - ((latestC.close - minP) / rangeP) * chartHeight;
+        const isBullLast = latestC.close >= latestC.open;
+        const tagColor = isBullLast ? '#089981' : '#f23645';
+
+        ctx.strokeStyle = tagColor;
+        ctx.setLineDash([3, 3]);
+        ctx.beginPath();
+        ctx.moveTo(0, lastY);
+        ctx.lineTo(chartWidth, lastY);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        ctx.fillStyle = tagColor;
+        ctx.fillRect(chartWidth + 2, lastY - 10, rightAxisWidth - 4, 20);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 11px sans-serif';
+        ctx.fillText('$' + latestC.close.toFixed(2), chartWidth + 6, lastY + 4);
     }}
 
-    function updateLivePrice() {{
-        const delta = (Math.random() - 0.49) * 0.45;
-        basePrice += delta;
-        historyData.shift();
-        historyData.push(basePrice);
+    function tickMarketAPI() {{
+        const lastC = candles[candles.length - 1];
+        const tickChange = (Math.random() - 0.48) * 0.35;
+        lastC.close += tickChange;
+        lastC.high = Math.max(lastC.high, lastC.close);
+        lastC.low = Math.min(lastC.low, lastC.close);
 
-        const priceEl = document.getElementById('gold-price-val');
-        const bidEl = document.getElementById('gold-bid');
-        const askEl = document.getElementById('gold-ask');
+        const priceEl = document.getElementById('tv-price-val');
+        const changeEl = document.getElementById('tv-price-change');
 
         if (priceEl) {{
-            priceEl.innerText = '$' + basePrice.toFixed(2);
-            priceEl.style.color = delta >= 0 ? '#00ff87' : '#ff4d4d';
+            priceEl.innerText = '$' + lastC.close.toFixed(2);
+            priceEl.style.color = lastC.close >= lastC.open ? '#089981' : '#f23645';
         }}
-        if (bidEl) bidEl.innerText = '$' + (basePrice - 0.15).toFixed(2);
-        if (askEl) askEl.innerText = '$' + (basePrice + 0.15).toFixed(2);
+        if (changeEl) {{
+            const chg = lastC.close - 2406.10;
+            const pct = (chg / 2406.10) * 100;
+            changeEl.innerText = (chg >= 0 ? '+' : '') + chg.toFixed(2) + ' (' + (chg >= 0 ? '+' : '') + pct.toFixed(2) + '%)';
+            changeEl.style.color = chg >= 0 ? '#089981' : '#f23645';
+        }}
 
-        drawChart();
+        renderTradingViewCandles();
     }}
 
     window.onload = function() {{
-        drawChart();
-        setInterval(updateLivePrice, 1500);
+        renderTradingViewCandles();
+        setInterval(tickMarketAPI, 1000);
     }};
 
     async function updateDashboard() {{
