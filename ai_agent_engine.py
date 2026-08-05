@@ -206,16 +206,42 @@ def evaluate_agent(pnls):
     peak = np.maximum.accumulate(cum_pnl)
     max_dd = abs(np.min(cum_pnl - peak))
 
+    # ---- Benchmark "BEAT TARGET" incentive ----
+    # Agents jo target benchmark (84.32% WR / PF 10.64) ko par/paar karte hain
+    # unko boost milta hai taaki AI target achieve/beat karne ki taraf optimize ho.
+    target_score = _target_score(win_rate, pf)
     fitness = net_profit * (pf ** 1.5) * (win_rate / 20.0) / (max_dd + 1.0)
+    fitness *= (1.0 + 0.5 * target_score)   # target-beaters ko bias
 
     return {
         "fitness": round(fitness, 4),
+        "target_score": round(target_score, 4),
         "trades": int(n_trades),
         "win_rate": round(win_rate, 2),
         "net_profit": round(net_profit, 2),
         "profit_factor": round(pf, 2),
         "max_dd": round(max_dd, 2)
     }
+
+
+# ---- Benchmark target constants + scoring ----
+TARGET_WR = 84.32          # target champion win rate
+TARGET_PF = 10.64          # target champion profit factor
+TARGET_WR_LOW = 78.24      # acceptable lower bound
+TARGET_PF_LOW = 5.46       # acceptable lower bound
+
+def _target_score(win_rate, pf):
+    """0-4 score: agents ko target range hit/beat karne ka score deta hai."""
+    s = 0.0
+    if win_rate >= TARGET_WR:
+        s += 2.0
+    elif win_rate >= TARGET_WR_LOW:
+        s += 1.0
+    if pf >= TARGET_PF:
+        s += 2.0
+    elif pf >= TARGET_PF_LOW:
+        s += 1.0
+    return s
 
 
 def generate_unique_agent_tasks(num_agents=1000):
@@ -303,7 +329,9 @@ def main():
             results.append({**agent, **eval_res})
 
     total_time = time.time() - t0
-    results.sort(key=lambda x: (x["win_rate"], x["trades"], x["profit_factor"]), reverse=True)
+    # Rank target-beating agents first (benchmark ko achieve/beat karne ka goal)
+    results.sort(key=lambda x: (x.get("target_score", 0.0), x["win_rate"],
+                                x["trades"], x["profit_factor"]), reverse=True)
 
     agent_names_pool = [
         "Agent Apex-Alpha", "Agent Titan-One", "Agent Nexus-Core", "Agent Orion-Prime",

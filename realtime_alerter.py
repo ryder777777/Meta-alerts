@@ -34,6 +34,7 @@ import requests
 import websocket  # websocket-client
 
 import exchanges
+import live_tracker   # live signal/results tracking
 
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s.%(msecs)03d [%(levelname)s] %(message)s",
@@ -118,6 +119,12 @@ def fire_alert(symbol: str, side: str, price: float, t0: float) -> None:
         emoji = "🟢" if side == "BUY" else "🔴"
         msg = f"{emoji} {side} | {symbol} @ {price}"
     log.info("DETECT->fire %.3fs | %s", time.time() - t0, msg)
+    # Live result tracking: har fired signal ek position kholta hai jiska
+    # result (TP/SL/time-exit) tracker verify karta hai.
+    try:
+        live_tracker.open_trade(symbol, side, price, t0)
+    except Exception as exc:  # noqa: BLE001
+        log.warning("live_tracker open failed: %s", exc)
     threading.Thread(target=send_telegram, args=(msg, t0), daemon=True).start()
 
 
@@ -154,6 +161,8 @@ class SymbolState:
             if sig in ("BUY", "SELL") and b != self.alerted:
                 self.alerted = b
                 fire_alert(self.symbol, sig, self.cur[4], t0)
+        # Live tracker: close ke time par kisi bhi open trade ko result check
+        live_tracker.update(self.symbol, self.cur[4])
 
     def on_price(self, price: float, vol: float, ts: int, t0: float) -> None:
         b = (ts // BUCKET_MS) * BUCKET_MS
@@ -175,6 +184,8 @@ class SymbolState:
             if sig in ("BUY", "SELL") and b != self.alerted:
                 self.alerted = b
                 fire_alert(self.symbol, sig, price, t0)
+        # Live tracker: har live tick pe open trades ka TP/SL/time-exit check
+        live_tracker.update(self.symbol, price)
 
 
 def run_ws(symbols, interval, adapter=None) -> None:

@@ -8,6 +8,8 @@ import json
 import os
 import time
 
+import live_tracker   # real live signal/results tracking
+
 LOG_BUFFER = []
 START_TIME = time.time()
 
@@ -52,36 +54,42 @@ def get_system_status():
         "telegram_chat_id": tg_chat,
         "render_service_id": service_id,
         "ai_memory": ai_memory,
-        "logs": LOG_BUFFER[-15:] if LOG_BUFFER else [f"[{time.strftime('%H:%M:%S')}] Meta-alerts AI Engine Target Benchmark Active"]
+        # REAL live results (not backtest benchmark) — live_tracker se
+        "live_results": live_tracker.get_results(),
+        "logs": LOG_BUFFER[-15:] if LOG_BUFFER else [f"[{time.strftime('%H:%M:%S')}] Meta-alerts LIVE engine active — tracking real signals/results"]
     }
 
 def render_dashboard_html():
     status = get_system_status()
-    memory = status.get("ai_memory", {})
-    benchmarks = memory.get("all_fixed_sl_15_20_ai_agents", [])
-    champ = memory.get("champion_strategy", {})
-    champ_perf = champ.get("performance_3yr_0_01_lot", {})
+    lr = status.get("live_results", {})
+    # AI agents ka TARGET (goal) — achieve karne ke liye, results ke roop me NAHI
+    target_wr = 84.32
+    target_pf = 10.64
 
-    rows_bench = ""
-    for idx, ag in enumerate(benchmarks):
-        rank = ag.get("rank", idx + 1)
-        rank_badge = "🥇" if rank == 1 else "🥈" if rank == 2 else "🥉" if rank == 3 else f"#{rank}"
-        agent_name = ag.get("agent_name", f"Agent Phoenix-{rank}")
-        rows_bench += f"""
-        <tr>
-            <td style="font-weight: bold; color: var(--accent-cyan);">{rank_badge}</td>
-            <td style="font-weight: 700; color: var(--accent-green);">🤖 {agent_name}</td>
-            <td><span class="badge-tag">{ag.get('mode', 'SUPER_LOOSE')}</span></td>
-            <td style="font-weight:700; color:var(--accent-gold);">{ag.get('trades_3yr', 0):,}</td>
-            <td style="color:var(--accent-green); font-weight:600;">{ag.get('wins', 0):,}</td>
-            <td style="color:var(--accent-red);">{ag.get('losses', 0):,}</td>
-            <td style="color: var(--accent-green); font-weight:800; font-size:16px;">🔥 {ag.get('win_rate', 0)}%</td>
-            <td style="color: var(--accent-green); font-weight:700;">+${ag.get('net_profit_001_lot', 0):,.2f}</td>
-            <td style="color: var(--accent-green); font-weight:800; font-size:15px;">+${ag.get('net_profit_010_lot', 0):,.2f}</td>
-            <td style="color: var(--accent-gold); font-weight:600;">${ag.get('avg_trade_usd', 0):.2f}</td>
-            <td style="color: var(--accent-cyan); font-weight:800; font-size:15px;">{ag.get('profit_factor', 0)}</td>
-        </tr>
-        """
+    # Live results -> server-side initial rows
+    lr_total = lr.get("total_trades", 0)
+    lr_wr = lr.get("win_rate", 0)
+    lr_wins = lr.get("wins", 0)
+    lr_losses = lr.get("losses", 0)
+    lr_net = lr.get("net_pnl_usd", 0)
+    lr_open = lr.get("open_positions", 0)
+    lr_tracking = lr.get("tracking_since", "-")
+
+    lr_recent_rows = ""
+    for t in lr.get("recent_trades", []):
+        emoji = "🟢" if t["side"] == "BUY" else "🔴"
+        color = "var(--accent-green)" if t["result"] == "WIN" else "var(--accent-red)"
+        lr_recent_rows += (
+            "<tr>"
+            f"<td>{emoji} {t['side']}</td>"
+            f"<td>{t['entry']}</td>"
+            f"<td>{t.get('close_price', '-')}</td>"
+            f"<td><span class='badge-tag'>{t.get('close_reason','-')}</span></td>"
+            f"<td style='color:{color}; font-weight:700;'>{t['result']}</td>"
+            f"<td style='color:{color};'>${t.get('pnl',0):.2f}</td>"
+            f"<td>{t.get('open_t','-')}</td>"
+            "</tr>"
+        )
 
     html = f"""<!DOCTYPE html>
 <html lang="en">
@@ -409,7 +417,7 @@ def render_dashboard_html():
             <div class="brand-icon">⚡</div>
             <div class="brand-title">
                 <h1>Meta-Alerts Live Control Center</h1>
-                <p>AI Agents Target Benchmark Matrix • 78.24% - 84.32% Win Rates • Profit Factor 5.46 - 10.64</p>
+                <p>Live Signal Engine • Real Results • AI Agents optimize toward target (84.32% WR / PF 10.64)</p>
             </div>
         </div>
         <div class="status-pill">
@@ -429,11 +437,11 @@ def render_dashboard_html():
         </div>
 
         <div class="card">
-            <div class="card-label">Target Benchmark Win Rate</div>
+            <div class="card-label">Live Win Rate (REAL)</div>
             <div class="card-value">
-                <span style="color: var(--accent-green);">84.32% Win Rate</span>
+                <span style="color: var(--accent-green);" id="lr-wr">{lr_wr}%</span>
             </div>
-            <div class="card-sub">Profit Factor: 10.64 • Sw0.6_Wi1.2</div>
+            <div class="card-sub" id="lr-wl">{lr_wins} Wins • {lr_losses} Losses</div>
         </div>
 
         <div class="card">
@@ -445,42 +453,44 @@ def render_dashboard_html():
         </div>
 
         <div class="card">
-            <div class="card-label">Top AI Agent Champion</div>
+            <div class="card-label">Live Net P&amp;L (0.01 lot)</div>
             <div class="card-value">
-                <span style="color: var(--accent-green);" id="champ-name">{champ.get('agent_name', 'Agent Phoenix-Pro')}</span>
-                <span class="badge-tag" id="champ-mode">{champ.get('mode', 'Sw0.6_Wi1.2')}</span>
+                <span style="color: var(--accent-green);" id="lr-net">${lr_net:.2f}</span>
             </div>
-            <div class="card-sub">
-                <strong id="champ-wr" style="color:var(--accent-green);">{champ_perf.get('win_rate_percent', 84.32)}% Win Rate</strong> • 
-                <span id="champ-trades" style="color:var(--accent-gold);">{champ_perf.get('total_trades', 944):,} Trades</span> • 
-                <span id="champ-pf" style="color:var(--accent-cyan); font-weight:700;">{champ_perf.get('profit_factor', 10.64)} PF</span>
+            <div class="card-sub">Trades: <span id="lr-total">{lr_total}</span> • Open: <span id="lr-open">{lr_open}</span></div>
+        </div>
+
+        <div class="card">
+            <div class="card-label">AI Optimization Target</div>
+            <div class="card-value">
+                <span style="color: var(--accent-gold);">🎯 Beat Target</span>
             </div>
+            <div class="card-sub">{target_wr}% Win Rate • PF {target_pf} • Agents optimize toward this</div>
         </div>
     </div>
 
-    <!-- 🏆 AI AGENTS TARGET BENCHMARK MATRIX TABLE -->
-    <div class="section-title">🏆 AI Agents Target Benchmark Matrix (78.24% - 84.32% Win Rates • 1.06 Million Gold M1)</div>
+    <!-- 📊 REAL LIVE RESULTS TABLE (benchmark ki jagah) -->
+    <div class="section-title">📊 Live Results (Real Signals — TP/SL/time-exit verified)</div>
     <div class="table-card">
         <table>
             <thead>
                 <tr>
-                    <th>Rank</th>
-                    <th>AI Agent Name</th>
-                    <th>Strategy Mode</th>
-                    <th>Trades (3 Yrs)</th>
-                    <th>Wins</th>
-                    <th>Losses</th>
-                    <th>Win Rate (%)</th>
-                    <th>Net Profit (0.01 Lot)</th>
-                    <th>Net Profit (0.10 Lot)</th>
-                    <th>Avg / Trade</th>
-                    <th>Profit Factor</th>
+                    <th>Side</th>
+                    <th>Entry</th>
+                    <th>Close</th>
+                    <th>Exit</th>
+                    <th>Result</th>
+                    <th>PnL</th>
+                    <th>Open (UTC)</th>
                 </tr>
             </thead>
-            <tbody id="leaderboard-body">
-                {rows_bench}
+            <tbody id="live-results-body">
+                {lr_recent_rows}
             </tbody>
         </table>
+        <p style="color:var(--text-muted); font-size:12px; margin-top:10px;">
+            Tracking since {lr_tracking} • SL ${lr.get('sl_usd',1.5):.2f} • TP ${lr.get('tp_usd',3.0):.2f} • time-exit {lr.get('max_hold_sec',300):.0f}s • Live tracker (abhi koi signal nahi aya to table khaali rahega)
+        </p>
     </div>
 
     <div class="layout-two-col">
@@ -508,9 +518,9 @@ def render_dashboard_html():
             <div class="terminal" id="console-logs">
                 <div class="log-line">[SYSTEM] Meta-alerts engine v2.0 initialized</div>
                 <div class="log-line">[RULE] 100% Zero Repaint | isC0FirstTick = barstate.isnew Entry Only</div>
-                <div class="log-line">[TARGET] Loaded Target Benchmark Matrix (Win Rate: 78.24% - 84.32% | PF: 5.46 - 10.64)</div>
+                <div class="log-line">[TARGET] AI agents optimize to BEAT target (WR 84.32% | PF 10.64)</div>
                 <div class="log-line">[SOURCE] cTrader Open API feed connected to IC Markets</div>
-                <div class="log-line">[STRATEGY] AB Touch Logic loaded from SECRET_LOGIC_B64</div>
+                <div class="log-line">[TRACKER] Live result tracking ON (TP/SL/time-exit)</div>
                 <div class="log-line">[STATUS] Listening for live tick signals...</div>
             </div>
 
@@ -683,46 +693,48 @@ def render_dashboard_html():
             if (clockEl && data.timestamp_utc) clockEl.innerText = data.timestamp_utc;
             if (uptimeEl && data.uptime_str) uptimeEl.innerText = data.uptime_str;
 
-            const mem = data.ai_memory || {{}};
-            const champ = mem.champion_strategy || {{}};
-            const champPerf = champ.performance_3yr_0_01_lot || {{}};
-            const champNameEl = document.getElementById('champ-name');
-            const champModeEl = document.getElementById('champ-mode');
-            const champWrEl = document.getElementById('champ-wr');
-            const champTradesEl = document.getElementById('champ-trades');
-            const champPfEl = document.getElementById('champ-pf');
+            const lr = data.live_results || {{}};
 
-            if (champNameEl && champ.agent_name) champNameEl.innerText = champ.agent_name;
-            if (champModeEl && champ.mode) champModeEl.innerText = champ.mode;
-            if (champWrEl && champPerf.win_rate_percent !== undefined) champWrEl.innerText = champPerf.win_rate_percent.toFixed(2) + '% Win Rate';
-            if (champTradesEl && champPerf.total_trades !== undefined) champTradesEl.innerText = champPerf.total_trades.toLocaleString() + ' Trades';
-            if (champPfEl && champPerf.profit_factor !== undefined) champPfEl.innerText = champPerf.profit_factor.toFixed(2) + ' PF';
+            const wrEl = document.getElementById('lr-wr');
+            const wlEl = document.getElementById('lr-wl');
+            const netEl = document.getElementById('lr-net');
+            const totalEl = document.getElementById('lr-total');
+            const openEl = document.getElementById('lr-open');
 
-            const agents = mem.all_fixed_sl_15_20_ai_agents || [];
-            if (agents.length > 0) {{
-                const tbody = document.getElementById('leaderboard-body');
-                if (tbody) {{
-                    let rowsHtml = '';
-                    agents.forEach(ag => {{
-                        const rankBadge = ag.rank === 1 ? '🥇' : ag.rank === 2 ? '🥈' : ag.rank === 3 ? '🥉' : '#' + ag.rank;
+            if (wrEl) wrEl.innerText = (lr.win_rate || 0) + '%';
+            if (wlEl) wlEl.innerText = (lr.wins || 0) + ' Wins • ' + (lr.losses || 0) + ' Losses';
+            if (netEl) {{
+                const n = lr.net_pnl_usd || 0;
+                netEl.innerText = (n >= 0 ? '+' : '') + '$' + Number(n).toFixed(2);
+                netEl.style.color = n >= 0 ? 'var(--accent-green)' : 'var(--accent-red)';
+            }}
+            if (totalEl) totalEl.innerText = lr.total_trades || 0;
+            if (openEl) openEl.innerText = lr.open_positions || 0;
+
+            // Live results table
+            const tbody = document.getElementById('live-results-body');
+            if (tbody) {{
+                const recent = (lr.recent_trades || []).slice().reverse();
+                let rowsHtml = '';
+                if (recent.length === 0) {{
+                    rowsHtml = '<tr><td colspan="7" style="color:var(--text-muted); text-align:center;">Abhi koi live signal track nahi hua — signals aate hi yahan asli results dikhenge</td></tr>';
+                }} else {{
+                    recent.forEach(t => {{
+                        const emoji = t.side === 'BUY' ? '🟢' : '🔴';
+                        const color = t.result === 'WIN' ? 'var(--accent-green)' : 'var(--accent-red)';
                         rowsHtml += `
                         <tr>
-                            <td style="font-weight: bold; color: var(--accent-cyan);">${{rankBadge}}</td>
-                            <td style="font-weight: 700; color: var(--accent-green);">🤖 ${{ag.agent_name}}</td>
-                            <td><span class="badge-tag">${{ag.mode}}</span></td>
-                            <td style="font-weight:700; color:var(--accent-gold);">${{ag.trades_3yr.toLocaleString()}}</td>
-                            <td style="color:var(--accent-green); font-weight:600;">${{ag.wins.toLocaleString()}}</td>
-                            <td style="color:var(--accent-red);">${{ag.losses.toLocaleString()}}</td>
-                            <td style="color: var(--accent-green); font-weight:800; font-size:16px;">🔥 ${{ag.win_rate}}%</td>
-                            <td style="color: var(--accent-green); font-weight:700;">+$${{ag.net_profit_001_lot.toFixed(2)}}</td>
-                            <td style="color: var(--accent-green); font-weight:800; font-size:15px;">+$${{ag.net_profit_010_lot.toFixed(2)}}</td>
-                            <td style="color: var(--accent-gold); font-weight:600;">$${{ag.avg_trade_usd.toFixed(2)}}</td>
-                            <td style="color: var(--accent-cyan); font-weight:800; font-size:15px;">${{ag.profit_factor}}</td>
-                        </tr>
-                        `;
+                            <td>${{emoji}} ${{t.side}}</td>
+                            <td>${{t.entry}}</td>
+                            <td>${{t.close_price != null ? t.close_price : '-'}}</td>
+                            <td><span class="badge-tag">${{t.close_reason || '-'}}</span></td>
+                            <td style="color:${{color}}; font-weight:700;">${{t.result}}</td>
+                            <td style="color:${{color}};">$${{Number(t.pnl || 0).toFixed(2)}}</td>
+                            <td>${{t.open_t || '-'}}</td>
+                        </tr>`;
                     }});
-                    tbody.innerHTML = rowsHtml;
                 }}
+                tbody.innerHTML = rowsHtml;
             }}
 
             if (data.logs && data.logs.length > 0) {{
