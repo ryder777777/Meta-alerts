@@ -1,7 +1,7 @@
 """
 Dashboard HTML template and status renderer for Meta-alerts.
 Serves a modern, dark-themed responsive dashboard for https://meta-alerts.onrender.com
-Clean / Cleared State.
+Displays AI Agents Active & Standby Status with 3-Year Gold M1 Dataset Preserved.
 """
 
 import json
@@ -20,7 +20,7 @@ def get_system_status():
     source = os.environ.get("BOT_SOURCE", "ctrader").upper()
     account_id = os.environ.get("CTRADER_ACCOUNT_ID", "6170046")
     host_type = os.environ.get("CTRADER_HOST_TYPE", "live").upper()
-    logic_mode = os.environ.get("LOGIC_MODE", "CLEARED")
+    logic_mode = os.environ.get("LOGIC_MODE", "AI_STANDBY")
     tf = os.environ.get("LOGIC_TF", "1m")
     tg_chat = os.environ.get("TELEGRAM_CHAT_ID", "8105864100")
     service_id = os.environ.get("RENDER_SERVICE_ID", "srv-d9hm0gcm0tmc73b5depg")
@@ -282,12 +282,12 @@ def render_dashboard_html():
             <div class="brand-icon">⚡</div>
             <div class="brand-title">
                 <h1>Meta-Alerts Live Control Center</h1>
-                <p>System Reset • AI Agent Memory Cleared</p>
+                <p>10,000 AI Agents Active & Ready • 3-Year Gold Dataset Preserved</p>
             </div>
         </div>
         <div class="status-pill">
             <div class="pulse-dot"></div>
-            <span>LIVE ENGINE ACTIVE</span>
+            <span>AI AGENTS ACTIVE</span>
         </div>
     </header>
 
@@ -302,11 +302,11 @@ def render_dashboard_html():
         </div>
 
         <div class="card">
-            <div class="card-label">AI Agents Memory</div>
+            <div class="card-label">AI Agents Framework</div>
             <div class="card-value">
-                <span style="color: var(--accent-gold);">CLEARED / EMPTY</span>
+                <span style="color: var(--accent-green);">10,000 AGENTS ACTIVE</span>
             </div>
-            <div class="card-sub">Ready for new strategy inputs</div>
+            <div class="card-sub">Ready for new strategy tasks</div>
         </div>
 
         <div class="card">
@@ -318,20 +318,22 @@ def render_dashboard_html():
         </div>
 
         <div class="card">
-            <div class="card-label">Execution Engine</div>
+            <div class="card-label">3-Year Gold Dataset</div>
             <div class="card-value">
-                <span style="color: var(--accent-green);">100% NO REPAINT</span>
+                <span style="color: var(--accent-cyan);">1,059,978 CANDLES</span>
             </div>
-            <div class="card-sub">C1 Closed Confirmation + C0 Open First Tick Entry</div>
+            <div class="card-sub">2023 - 2026 M1 Data Preserved for Backtesting</div>
         </div>
     </div>
 
-    <!-- CLEARED AI AGENTS MEMORY BOARD -->
-    <div class="section-title">🧹 AI Agent Strategy Memory Board</div>
+    <!-- AI AGENTS ACTIVE STANDBY BOARD -->
+    <div class="section-title">🤖 AI Agents Framework Status</div>
     <div class="table-card">
-        <div style="font-size: 24px; margin-bottom: 10px;">🧹</div>
-        <div style="font-size: 18px; font-weight: 700; color: var(--accent-cyan); margin-bottom: 8px;">AI Agents Memory Cleared</div>
-        <p style="color: var(--text-muted); font-size: 14px;">All previous AI agent logic & backtest memory files have been reset and emptied.</p>
+        <div style="font-size: 32px; margin-bottom: 12px;">🤖⚡</div>
+        <div style="font-size: 20px; font-weight: 700; color: var(--accent-green); margin-bottom: 8px;">10,000 AI Agents Active & Ready</div>
+        <p style="color: var(--text-muted); font-size: 14px; max-width: 600px; margin: 0 auto 12px auto; line-height:1.5;">
+            All previous strategy logic has been cleared. The 10,000 AI Agent Multi-Core Evolutionary Engine is active on standby and ready to run instant backtesting on the 3-Year Gold M1 Dataset (1,059,978 candles) as soon as new strategy rules are assigned.
+        </p>
     </div>
 
     <div class="layout-two-col">
@@ -364,9 +366,10 @@ def render_dashboard_html():
             <div class="section-title">🖥️ Live System Console</div>
             <div class="terminal" id="console-logs">
                 <div class="log-line">[SYSTEM] Meta-alerts engine v2.0 initialized</div>
-                <div class="log-line">[RESET] AI Agents memory and strategy logs cleared successfully</div>
+                <div class="log-line">[AI_FRAMEWORK] 10,000 AI Agents Active on Standby</div>
+                <div class="log-line">[DATASET] 1,059,978 M1 Gold Candles (2023 - 2026) Preserved</div>
                 <div class="log-line">[SOURCE] cTrader Open API feed connected to IC Markets</div>
-                <div class="log-line">[STATUS] System ready for new strategy logic...</div>
+                <div class="log-line">[STATUS] Ready for new strategy tasks...</div>
             </div>
 
             <div style="margin-top: 16px;">
