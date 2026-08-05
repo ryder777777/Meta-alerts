@@ -299,6 +299,15 @@ def _target_score(win_rate, pf):
 GLOBAL_AI_MEMORY = {}
 GENERATION_COUNTER = 0
 
+# TRUE DEDUP: har evaluated genome ka unique key is set me. Random generation
+# ka koi bhi combo yahan already ho toh agent skip — repeat kabhi nahi.
+EVALUATED_GENOMES = set()
+
+
+def _genome_key(agent):
+    return (agent["mode"], agent["sl"], agent["tp"],
+            agent["psw"], agent["pwk"], agent["pdp"], agent["ptr"], agent["sess"])
+
 
 def _seed_memory_from_disk():
     """Purane strategy_memory.json se best genomes load karo taaki restart pe
@@ -379,37 +388,74 @@ def run_continuous_ai_evolution_loop():
 
     # Restart-safe: purane strategy_memory se best genomes load karo (data na khoye)
     _seed_memory_from_disk()
+    # Dedup set bhi disk ke existing genomes se seed karo — restart pe bhi repeat na ho
+    for k in GLOBAL_AI_MEMORY:
+        EVALUATED_GENOMES.add(k)
 
     print(f"🤖 24/7 Continuous AI Evolutionary Agent Daemon Started! "
-          f"({agents_per_gen} agents/generation | top {top_n} saved)")
+          f"({agents_per_gen} agents/generation | top {top_n} saved | "
+          f"{len(EVALUATED_GENOMES):,} genomes already explored)")
 
     while True:
         GENERATION_COUNTER += 1
         t0 = time.time()
 
-        # Batch mutate N AI Agent Genomes (configurable, up to Render CPU/RAM limit)
-        batch_tasks = []
-        for _ in range(agents_per_gen):
-            m = random.choice(modes)
-            sl = random.choice(sl_options)
-            tp = random.choice(tp_options)
-            psw = random.choice(psw_options)
-            pwk = random.choice(pwk_options)
-            pdp = random.choice(pdp_options)
-            ptr = random.choice(ptr_options)
-            sess = random.choice(sess_options)
+        # Best agents = future generations ke parents (self-improvement)
+        best_list = sorted(GLOBAL_AI_MEMORY.values(),
+                           key=lambda x: (x.get("target_score", 0.0), x["win_rate"],
+                                          x["trades"], x["profit_factor"]), reverse=True)[:max(10, agents_per_gen // 3)]
 
-            batch_tasks.append({
+        # Batch generate N UNIQUE AI Agent Genomes (dedup guarantee)
+        batch_tasks = []
+        seen_this_gen = set()
+        while len(batch_tasks) < agents_per_gen:
+            # 60% parent-mutation (best se improve), 40% fresh random exploration
+            if best_list and random.random() < 0.6:
+                p = random.choice(best_list)
+                # parent se copy, phir har param me mutation ka chance
+                m = p["mode"]
+                sl = p["sl"]; tp = p["tp"]; psw = p["psw"]; pwk = p["pwk"]
+                pdp = p["pdp"]; ptr = p["ptr"]; sess = p["sess"]
+                if random.random() < 0.3:
+                    sl = random.choice(sl_options)
+                if random.random() < 0.3:
+                    tp = random.choice(tp_options)
+                if random.random() < 0.3:
+                    psw = random.choice(psw_options)
+                if random.random() < 0.3:
+                    pwk = random.choice(pwk_options)
+                if random.random() < 0.3:
+                    pdp = random.choice(pdp_options)
+                if random.random() < 0.3:
+                    ptr = random.choice(ptr_options)
+                if random.random() < 0.15:
+                    sess = random.choice(sess_options)
+                if random.random() < 0.05:
+                    m = random.choice(modes)
+            else:
+                # fresh random genome
+                m = random.choice(modes)
+                sl = random.choice(sl_options)
+                tp = random.choice(tp_options)
+                psw = random.choice(psw_options)
+                pwk = random.choice(pwk_options)
+                pdp = random.choice(pdp_options)
+                ptr = random.choice(ptr_options)
+                sess = random.choice(sess_options)
+
+            g = {
                 "mode": m,
                 "mode_code": mode_map[m],
-                "sl": sl,
-                "tp": tp,
-                "psw": psw,
-                "pwk": pwk,
-                "pdp": pdp,
-                "ptr": ptr,
-                "sess": sess
-            })
+                "sl": sl, "tp": tp, "psw": psw, "pwk": pwk,
+                "pdp": pdp, "ptr": ptr, "sess": sess
+            }
+            key = _genome_key(g)
+            # TRUE DEDUP: explored combo skip — naya unique hi test karo
+            if key in EVALUATED_GENOMES or key in seen_this_gen:
+                continue
+            EVALUATED_GENOMES.add(key)
+            seen_this_gen.add(key)
+            batch_tasks.append(g)
 
         for agent in batch_tasks:
             pnls = simulate_agent_genome(
