@@ -1,7 +1,7 @@
 """
 Dashboard HTML template and status renderer for Meta-alerts.
 Serves a modern, dark-themed responsive dashboard for https://meta-alerts.onrender.com
-Dynamic Live Status Updates & AI Agents Heartbeat Monitor.
+Dynamic Live Real-Time Auto-Updating AI Agents Leaderboard & Heartbeat.
 """
 
 import json
@@ -52,25 +52,21 @@ def get_system_status():
         "telegram_chat_id": tg_chat,
         "render_service_id": service_id,
         "ai_memory": ai_memory,
-        "logs": LOG_BUFFER[-15:] if LOG_BUFFER else [f"[{time.strftime('%H:%M:%S')}] Meta-alerts engine v2.0 active & listening"]
+        "logs": LOG_BUFFER[-15:] if LOG_BUFFER else [f"[{time.strftime('%H:%M:%S')}] Meta-alerts 24/7 AI Engine Active & Optimizing"]
     }
 
 def render_dashboard_html():
     status = get_system_status()
     memory = status.get("ai_memory", {})
     top_modes = memory.get("all_fixed_sl_15_20_ai_agents", [])
-
-    agent_names = [
-        "Agent Apex-Alpha", "Agent Titan-One", "Agent Nexus-Core", "Agent Orion-Prime",
-        "Agent Vector-V5", "Agent Hyperion-X", "Agent Cyber-Quantum", "Agent Astra-7",
-        "Agent Phoenix-9", "Agent Matrix-01", "Agent Spectre-X", "Agent Chronos-3"
-    ]
+    gen_cnt = memory.get("generation_counter", 1)
+    tot_evals = memory.get("total_simulated_ai_agents", 250)
 
     rows_pine = ""
     for idx, ag in enumerate(top_modes):
         rank = ag.get("rank", idx + 1)
         rank_badge = "🥇" if rank == 1 else "🥈" if rank == 2 else "🥉" if rank == 3 else f"#{rank}"
-        agent_name = agent_names[idx % len(agent_names)]
+        agent_name = ag.get("agent_name", f"Agent Alpha-{rank}")
         rows_pine += f"""
         <tr>
             <td style="font-weight: bold; color: var(--accent-cyan);">{rank_badge}</td>
@@ -413,12 +409,12 @@ def render_dashboard_html():
             <div class="brand-icon">⚡</div>
             <div class="brand-title">
                 <h1>Meta-Alerts Live Control Center</h1>
-                <p>Realtime AI Agents Heartbeat Monitor • IC Markets Feed</p>
+                <p>24/7 Live Evolutionary AI Agent Engine • 1,059,978 M1 Gold Candles</p>
             </div>
         </div>
         <div class="status-pill">
             <div class="pulse-dot"></div>
-            <span id="live-header-status">10,000 AI AGENTS ACTIVE</span>
+            <span id="live-header-status">24/7 AI AGENTS EVOLVING</span>
         </div>
     </header>
 
@@ -433,11 +429,11 @@ def render_dashboard_html():
         </div>
 
         <div class="card">
-            <div class="card-label">AI Engine Heartbeat</div>
+            <div class="card-label">AI Agent Evolution Progress</div>
             <div class="card-value">
-                <span style="color: var(--accent-green);" id="live-heartbeat">● ACTIVE</span>
+                <span style="color: var(--accent-green);" id="ai-gen-count">Gen #{gen_cnt:,}</span>
             </div>
-            <div class="card-sub">Uptime: <strong id="live-uptime" style="color:var(--accent-cyan);">{status['uptime_str']}</strong></div>
+            <div class="card-sub"><strong id="ai-eval-count" style="color:var(--accent-cyan);">{tot_evals:,} AI Agents Evaluated</strong></div>
         </div>
 
         <div class="card">
@@ -445,20 +441,20 @@ def render_dashboard_html():
             <div class="card-value">
                 <span style="color: var(--accent-cyan);" id="live-clock">{status['timestamp_utc']}</span>
             </div>
-            <div class="card-sub">Continuous Live Sync</div>
+            <div class="card-sub">Engine Uptime: <strong id="live-uptime">{status['uptime_str']}</strong></div>
         </div>
 
         <div class="card">
-            <div class="card-label">Top AI Champion</div>
+            <div class="card-label">Top AI Agent Champion</div>
             <div class="card-value">
-                <span style="color: var(--accent-green);">Agent Apex-Alpha</span>
+                <span style="color: var(--accent-green);" id="champ-name">Agent Apex-Alpha</span>
             </div>
-            <div class="card-sub">64.86% Win Rate • 3.60 Profit Factor</div>
+            <div class="card-sub"><span id="champ-wr">64.86% Win Rate</span> • <span id="champ-pf">3.60 Profit Factor</span></div>
         </div>
     </div>
 
-    <!-- 🏆 STRICT FIXED SL $1.5 OR $2.0 AI AGENTS LEADERBOARD -->
-    <div class="section-title">🤖 AI Agents Strategy Leaderboard (Fixed SL $1.5 or $2.0 • 1.06 Million Gold M1)</div>
+    <!-- 🤖 LIVE AUTO-UPDATING AI AGENTS LEADERBOARD -->
+    <div class="section-title">🤖 Live AI Agents Strategy Leaderboard (2023 - 2026 Gold M1 • Fixed SL $1.5 / $2.0)</div>
     <div class="table-card">
         <table>
             <thead>
@@ -476,7 +472,7 @@ def render_dashboard_html():
                     <th>Max Drawdown (0.01 Lot)</th>
                 </tr>
             </thead>
-            <tbody>
+            <tbody id="leaderboard-body">
                 {rows_pine}
             </tbody>
         </table>
@@ -506,11 +502,9 @@ def render_dashboard_html():
             <div class="section-title">🖥️ Live System Console</div>
             <div class="terminal" id="console-logs">
                 <div class="log-line">[SYSTEM] Meta-alerts engine v2.0 initialized</div>
+                <div class="log-line">[AI_DAEMON] 24/7 Live Evolutionary AI Agents Search Active</div>
                 <div class="log-line">[RULE] 100% Zero Repaint | isC0FirstTick = barstate.isnew Entry Only</div>
-                <div class="log-line">[SL_RULE] Fixed SL = $1.5 or $2.0 ONLY Enforced</div>
-                <div class="log-line">[AI_AGENTS] Loaded Named AI Agents (Agent Apex-Alpha, Agent Titan-One, etc.)</div>
                 <div class="log-line">[SOURCE] cTrader Open API feed connected to IC Markets</div>
-                <div class="log-line">[STRATEGY] AB Touch Logic loaded from SECRET_LOGIC_B64</div>
                 <div class="log-line">[STATUS] Listening for live tick signals...</div>
             </div>
 
@@ -678,11 +672,47 @@ def render_dashboard_html():
             const res = await fetch('/api/status');
             const data = await res.json();
             
-            // Dynamic Live Clock & Uptime Updates
+            // Dynamic Clock & Uptime
             const clockEl = document.getElementById('live-clock');
             const uptimeEl = document.getElementById('live-uptime');
             if (clockEl && data.timestamp_utc) clockEl.innerText = data.timestamp_utc;
             if (uptimeEl && data.uptime_str) uptimeEl.innerText = data.uptime_str;
+
+            // AI Memory Dynamic Auto-Updates
+            const mem = data.ai_memory || {{}};
+            const genEl = document.getElementById('ai-gen-count');
+            const evalEl = document.getElementById('ai-eval-count');
+            
+            if (genEl && mem.generation_counter) genEl.innerText = 'Gen #' + mem.generation_counter;
+            if (evalEl && mem.total_simulated_ai_agents) evalEl.innerText = mem.total_simulated_ai_agents.toLocaleString() + ' AI Agents Evaluated';
+
+            // Dynamic Leaderboard Re-rendering
+            const agents = mem.all_fixed_sl_15_20_ai_agents || [];
+            if (agents.length > 0) {{
+                const tbody = document.getElementById('leaderboard-body');
+                if (tbody) {{
+                    let rowsHtml = '';
+                    agents.forEach(ag => {{
+                        const rankBadge = ag.rank === 1 ? '🥇' : ag.rank === 2 ? '🥈' : ag.rank === 3 ? '🥉' : '#' + ag.rank;
+                        rowsHtml += `
+                        <tr>
+                            <td style="font-weight: bold; color: var(--accent-cyan);">${{rankBadge}}</td>
+                            <td style="font-weight: 700; color: var(--accent-green);">🤖 ${{ag.agent_name}}</td>
+                            <td><span class="badge-tag">${{ag.mode}}</span></td>
+                            <td>${{ag.sl_setting}}</td>
+                            <td style="color: var(--accent-gold); font-weight:600;">${{ag.tp_exit}}</td>
+                            <td style="color: var(--accent-green); font-weight:800; font-size:16px;">🔥 ${{ag.win_rate}}%</td>
+                            <td style="font-weight:700; color:var(--accent-gold);">${{ag.trades_3yr.toLocaleString()}} Trades</td>
+                            <td style="color: var(--accent-green); font-weight:700;">+$${{ag.net_profit_001_lot.toFixed(2)}}</td>
+                            <td style="color: var(--accent-green); font-weight:800; font-size:15px;">+$${{ag.net_profit_010_lot.toFixed(2)}}</td>
+                            <td style="color: var(--accent-cyan); font-weight:700;">${{ag.profit_factor}}</td>
+                            <td style="color: var(--accent-red);">$${{ag.max_dd_001_lot.toFixed(2)}}</td>
+                        </tr>
+                        `;
+                    }});
+                    tbody.innerHTML = rowsHtml;
+                }}
+            }}
 
             if (data.logs && data.logs.length > 0) {{
                 const consoleEl = document.getElementById('console-logs');

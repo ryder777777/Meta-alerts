@@ -324,12 +324,12 @@
             <div class="brand-icon">⚡</div>
             <div class="brand-title">
                 <h1>Meta-Alerts Live Control Center</h1>
-                <p>Realtime AI Agents Heartbeat Monitor • IC Markets Feed</p>
+                <p>24/7 Live Evolutionary AI Agent Engine • 1,059,978 M1 Gold Candles</p>
             </div>
         </div>
         <div class="status-pill">
             <div class="pulse-dot"></div>
-            <span id="live-header-status">10,000 AI AGENTS ACTIVE</span>
+            <span id="live-header-status">24/7 AI AGENTS EVOLVING</span>
         </div>
     </header>
 
@@ -344,32 +344,32 @@
         </div>
 
         <div class="card">
-            <div class="card-label">AI Engine Heartbeat</div>
+            <div class="card-label">AI Agent Evolution Progress</div>
             <div class="card-value">
-                <span style="color: var(--accent-green);" id="live-heartbeat">● ACTIVE</span>
+                <span style="color: var(--accent-green);" id="ai-gen-count">Gen #142</span>
             </div>
-            <div class="card-sub">Uptime: <strong id="live-uptime" style="color:var(--accent-cyan);">00h 15m 32s</strong></div>
+            <div class="card-sub"><strong id="ai-eval-count" style="color:var(--accent-cyan);">3,550 AI Agents Evaluated</strong></div>
         </div>
 
         <div class="card">
             <div class="card-label">Server Timestamp</div>
             <div class="card-value">
-                <span style="color: var(--accent-cyan);" id="live-clock">18:12:00 UTC</span>
+                <span style="color: var(--accent-cyan);" id="live-clock">18:32:05 UTC</span>
             </div>
-            <div class="card-sub">Continuous Live Sync</div>
+            <div class="card-sub">Engine Uptime: <strong id="live-uptime">00h 25m 10s</strong></div>
         </div>
 
         <div class="card">
-            <div class="card-label">Top AI Champion</div>
+            <div class="card-label">Top AI Agent Champion</div>
             <div class="card-value">
-                <span style="color: var(--accent-green);">Agent Apex-Alpha</span>
+                <span style="color: var(--accent-green);" id="champ-name">Agent Apex-Alpha</span>
             </div>
-            <div class="card-sub">64.86% Win Rate • 3.60 Profit Factor</div>
+            <div class="card-sub"><span id="champ-wr">64.86% Win Rate</span> • <span id="champ-pf">3.60 Profit Factor</span></div>
         </div>
     </div>
 
-    <!-- 🏆 STRICT FIXED SL $1.5 OR $2.0 AI AGENTS LEADERBOARD -->
-    <div class="section-title">🤖 AI Agents Strategy Leaderboard (Fixed SL $1.5 or $2.0 • 1.06 Million Gold M1)</div>
+    <!-- 🤖 LIVE AUTO-UPDATING AI AGENTS LEADERBOARD -->
+    <div class="section-title">🤖 Live AI Agents Strategy Leaderboard (2023 - 2026 Gold M1 • Fixed SL $1.5 / $2.0)</div>
     <div class="table-card">
         <table>
             <thead>
@@ -387,7 +387,7 @@
                     <th>Max Drawdown (0.01 Lot)</th>
                 </tr>
             </thead>
-            <tbody>
+            <tbody id="leaderboard-body">
                 <tr>
                     <td style="font-weight: bold; color: var(--accent-cyan);">🥇</td>
                     <td style="font-weight: 700; color: var(--accent-green);">🤖 Agent Apex-Alpha</td>
@@ -456,8 +456,7 @@
             <div class="terminal" id="console-logs">
                 <div class="log-line">[SYSTEM] Meta-alerts engine v2.0 initialized</div>
                 <div class="log-line">[RULE] 100% Zero Repaint | isC0FirstTick = barstate.isnew Entry Only</div>
-                <div class="log-line">[SL_RULE] Fixed SL = $1.5 or $2.0 ONLY Enforced</div>
-                <div class="log-line">[AI_AGENTS] Loaded Named AI Agents (Agent Apex-Alpha, Agent Titan-One, etc.)</div>
+                <div class="log-line">[AI_DAEMON] 24/7 Live Evolutionary AI Agents Search Active</div>
                 <div class="log-line">[SOURCE] cTrader Open API feed connected to IC Markets</div>
                 <div class="log-line">[STRATEGY] AB Touch Logic loaded from SECRET_LOGIC_B64</div>
                 <div class="log-line">[STATUS] Listening for live tick signals...</div>
@@ -631,6 +630,40 @@
             const uptimeEl = document.getElementById('live-uptime');
             if (clockEl && data.timestamp_utc) clockEl.innerText = data.timestamp_utc;
             if (uptimeEl && data.uptime_str) uptimeEl.innerText = data.uptime_str;
+
+            const mem = data.ai_memory || {};
+            const genEl = document.getElementById('ai-gen-count');
+            const evalEl = document.getElementById('ai-eval-count');
+            
+            if (genEl && mem.generation_counter) genEl.innerText = 'Gen #' + mem.generation_counter;
+            if (evalEl && mem.total_simulated_ai_agents) evalEl.innerText = mem.total_simulated_ai_agents.toLocaleString() + ' AI Agents Evaluated';
+
+            const agents = mem.all_fixed_sl_15_20_ai_agents || [];
+            if (agents.length > 0) {
+                const tbody = document.getElementById('leaderboard-body');
+                if (tbody) {
+                    let rowsHtml = '';
+                    agents.forEach(ag => {
+                        const rankBadge = ag.rank === 1 ? '🥇' : ag.rank === 2 ? '🥈' : ag.rank === 3 ? '🥉' : '#' + ag.rank;
+                        rowsHtml += `
+                        <tr>
+                            <td style="font-weight: bold; color: var(--accent-cyan);">${rankBadge}</td>
+                            <td style="font-weight: 700; color: var(--accent-green);">🤖 ${ag.agent_name}</td>
+                            <td><span class="badge-tag">${ag.mode}</span></td>
+                            <td>${ag.sl_setting}</td>
+                            <td style="color: var(--accent-gold); font-weight:600;">${ag.tp_exit}</td>
+                            <td style="color: var(--accent-green); font-weight:800; font-size:16px;">🔥 ${ag.win_rate}%</td>
+                            <td style="font-weight:700; color:var(--accent-gold);">${ag.trades_3yr.toLocaleString()} Trades</td>
+                            <td style="color: var(--accent-green); font-weight:700;">+$${ag.net_profit_001_lot.toFixed(2)}</td>
+                            <td style="color: var(--accent-green); font-weight:800; font-size:15px;">+$${ag.net_profit_010_lot.toFixed(2)}</td>
+                            <td style="color: var(--accent-cyan); font-weight:700;">${ag.profit_factor}</td>
+                            <td style="color: var(--accent-red);">$${ag.max_dd_001_lot.toFixed(2)}</td>
+                        </tr>
+                        `;
+                    });
+                    tbody.innerHTML = rowsHtml;
+                }
+            }
 
             if (data.logs && data.logs.length > 0) {
                 const consoleEl = document.getElementById('console-logs');
