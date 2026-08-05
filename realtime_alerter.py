@@ -391,6 +391,43 @@ def run_ctrader(symbols, interval) -> None:
         time.sleep(3600)   # sab kaam reactor thread me hota hai
 
 
+_UPLOAD_FORM = """<!DOCTYPE html><html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Upload Data</title></head>
+<body style="font-family:Arial;background:#0b0e14;color:#f0f6fc;padding:24px">
+<h2>📤 Meta-alerts 3-Year Data Upload</h2>
+<p>MT5/cTrader CSV (tab-separated: DATE TIME OPEN HIGH LOW CLOSE VOLUME) upload karo.<br>
+Ye Render instance ke <b>/home/user/uploads</b> me save hoga — AI daemon isi data pe backtest karta hai.</p>
+<form method="post" enctype="multipart/form-data">
+<input type="file" name="data" required accept=".csv,text/csv"><br><br>
+<input type="submit" value="Upload" style="padding:10px 20px;font-size:15px">
+</form>
+<p style="color:#8b949e;font-size:12px">⚠️ Render free ephemeral disk — redeploy pe ye data delete ho jayega, phir dobara upload karna hoga.</p>
+</body></html>"""
+
+
+def _parse_multipart(body: bytes, boundary: bytes):
+    """Simple multipart/form-data parser for the upload endpoint."""
+    fields = {}
+    delimiter = b"--" + boundary
+    for part in body.split(delimiter):
+        if b"name=" not in part or b"\r\n\r\n" not in part:
+            continue
+        head, _, content = part.partition(b"\r\n\r\n")
+        name = b"filename"
+        fname = b""
+        if b"filename=" in head:
+            # filename="abc.csv"
+            try:
+                fname = head.split(b'filename="')[1].split(b'"')[0]
+            except Exception:  # noqa: BLE001
+                fname = b"data.csv"
+        if b'name="data"' in head:
+            fields["data"] = content.rstrip(b"\r\n")
+            fields["filename"] = fname or b"data.csv"
+    return fields
+
+
 def start_health_server() -> None:
     """Render/web hosting ke liye Live Control Center Dashboard + /ctrader OAuth endpoint."""
     from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -412,11 +449,72 @@ def start_health_server() -> None:
                 status_json = json.dumps(get_system_status())
                 self._ok(status_json, content_type="application/json")
                 return
+            if self.path.startswith("/api/data-status"):
+                from ai_agent_daemon import data_status
+                self._ok(json.dumps(data_status()), content_type="application/json")
+                return
+            if self.path.startswith("/api/upload-form"):
+                self._ok(_UPLOAD_FORM, content_type="text/html; charset=utf-8")
+                return
             # Default GET / serves Live Control Center Dashboard
             self._ok(render_dashboard_html())
 
+        def do_POST(self):
+            # CSV data upload — Render instance pe historical data daalo
+            # (bina GitHub push ke, bina gitignore tod ke)
+            from ai_agent_daemon import UPLOAD_DIR
+            try:
+                length = int(self.headers.get("Content-Length", 0))
+                body = self.rfile.read(length) if length else b""
+                import cgi
+                content_type = self.headers.get("Content-Type", "")
+                if "multipart/form-data" in content_type:
+                    _, pdict = cgi.parse_header(content_type)
+                    pdict["boundary"] = bytes(pdict["boundary"], "utf-8")
+                    fields = cgi.parse_multipart(self.rfile, pdict) if False else _parse_multipart(body, pdict["boundary"])
+                    fname = (fields.get("filename") or ["data.csv"])[0]
+                    filedata = fields.get("data", [b""])[0]
+                else:
+                    fname = "data.csv"
+                    filedata = body
+                os.makedirs(UPLOAD_DIR, exist_ok=True)
+                path = os.path.join(UPLOAD_DIR, os.path.basename(fname) or "data.csv")
+                with open(path, "wb") as f:
+                    f.write(filedata)
+                n = len(filedata)
+                log.info("Data upload: %s (%d bytes)", path, n)
+                add_dashboard_log(f"📤 Data uploaded: {os.path.basename(path)} ({n:,} bytes)")
+                self._ok(
+                    ("<body style='font-family:Arial;background:#0e1117;color:#6bff8f;"
+                     "padding:24px'><h2>✅ Data uploaded!</h2><p>%s (%d bytes)</p>"
+                     "<p>AI daemon agle generation se naya data use karega. "
+                     "⚠️ Render ephemeral disk pe save hua — redeploy pe delete hoga.</p>"
+                     "<p><a href='/' style='color:#4da3ff'>← Dashboard</a></p></body>"
+                     % (os.path.basename(path), n)).encode()
+                )
+            except Exception as exc:  # noqa: BLE001
+                log.error("Upload failed: %s", exc)
+                self._ok(("<body style='font-family:Arial;background:#0e1117;color:#ff6b6b;"
+                          "padding:24px'><h2>Upload error</h2><pre>%s</pre></body>" % exc).encode())
+
         def do_HEAD(self):
             self._ok(b"")
+
+        def do_PUT(self):
+            # PUT bhi raw CSV body accept kare
+            try:
+                from ai_agent_daemon import UPLOAD_DIR
+                length = int(self.headers.get("Content-Length", 0))
+                filedata = self.rfile.read(length) if length else b""
+                os.makedirs(UPLOAD_DIR, exist_ok=True)
+                path = os.path.join(UPLOAD_DIR, "data.csv")
+                with open(path, "wb") as f:
+                    f.write(filedata)
+                add_dashboard_log(f"📤 Data PUT: data.csv ({len(filedata):,} bytes)")
+                self._ok(b"data saved", content_type="text/plain")
+            except Exception as exc:  # noqa: BLE001
+                self.send_response(500); self.end_headers()
+                self.wfile.write(str(exc).encode())
 
         def _handle_ctrader_oauth(self):
             from urllib.parse import urlparse, parse_qs

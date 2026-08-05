@@ -15,8 +15,47 @@ import pandas as pd
 import numpy as np
 from numba import njit
 
-DATA_DIR = "/home/user/uploads"
+DATA_DIR = os.environ.get("DATA_DIR", "/home/user/uploads")
 MEMORY_FILE = os.path.join(os.path.dirname(__file__), "strategy_memory.json")
+
+# Upload endpoint yahan data save karta hai
+UPLOAD_DIR = os.environ.get("UPLOAD_DIR", "/home/user/uploads")
+
+
+def data_status():
+    """Dashboard ke liye: data ka haal batao (kabhi file aayi? kitne candles?)."""
+    files = []
+    for d in DATA_SEARCH_DIRS:
+        f = sorted(glob.glob(os.path.join(d, "*.csv")))
+        if f:
+            files = f
+            break
+    total_bytes = sum(os.path.getsize(x) for x in files)
+    return {
+        "files": [os.path.basename(x) for x in files],
+        "dir": [d for d in DATA_SEARCH_DIRS if glob.glob(os.path.join(d, "*.csv"))],
+        "total_bytes": total_bytes,
+        "candles_loaded": len(CLOSES) if CLOSES is not None else 0,
+        "dataset_loaded": DATASET is not None,
+        "upload_dir": UPLOAD_DIR,
+        "hint": "Data upload karne ke liye GET /api/upload-form kholo (ya PUT raw CSV). "
+                "Redeploy pe ephemeral disk wipe hoti hai — data dobara upload karna padega."
+    }
+
+# Data kabhi-kabhi alag jagah hota hai (gitignored uploads dir, ya repo ke
+# saath data/ dir). Ye locations try karte hain.
+DATA_SEARCH_DIRS = [
+    DATA_DIR,
+    "/home/user/uploads",
+    os.path.join(os.path.dirname(__file__), "data"),
+    os.path.join(os.path.dirname(__file__), "uploads"),
+]
+
+# ---- Agent count (Render free tier ke CPU/RAM ko respect karte hue) ----
+# Render free = ~512MB RAM / 0.1 CPU. Har agent ~1.06M candles scan karta hai.
+# AI_AGENTS_PER_GEN env se bina redeploy ke badla ja sakta hai.
+DEFAULT_AGENTS_PER_GEN = int(os.environ.get("AI_AGENTS_PER_GEN", "100"))
+DEFAULT_TOP_N = int(os.environ.get("AI_TOP_N", "50"))
 
 # Load Dataset in memory
 DATASET = None
@@ -26,13 +65,24 @@ def load_dataset():
     global DATASET, OPENS, HIGHS, LOWS, CLOSES, HOURS
     if DATASET is not None:
         return
-    
-    files = sorted(glob.glob(os.path.join(DATA_DIR, "*.csv")))
+
+    # Data ko kai jagah dhundho (DATA_DIR env > /home/user/uploads > ./data > ./uploads)
+    files = []
+    found_dir = None
+    for d in DATA_SEARCH_DIRS:
+        f = sorted(glob.glob(os.path.join(d, "*.csv")))
+        if f:
+            files = f
+            found_dir = d
+            break
     if not files:
-        raise FileNotFoundError(f"No CSV files found in {DATA_DIR}")
-    
+        raise FileNotFoundError(
+            f"No CSV data found in {DATA_SEARCH_DIRS}. "
+            f"3-year Gold M1 CSV wahan daalo (tab AI agents backtest kar payenge)."
+        )
+
     dfs = []
-    print(f"📂 Loading 3-Year Gold M1 Dataset ({len(files)} files)...")
+    print(f"📂 Loading 3-Year Gold M1 Dataset ({len(files)} files from {found_dir})...")
     for f in files:
         df = pd.read_csv(f, sep="\t")
         df.columns = [c.strip("<>").upper() for c in df.columns]
@@ -249,6 +299,45 @@ def _target_score(win_rate, pf):
 GLOBAL_AI_MEMORY = {}
 GENERATION_COUNTER = 0
 
+
+def _seed_memory_from_disk():
+    """Purane strategy_memory.json se best genomes load karo taaki restart pe
+    exploration data na khoye (Render ephemeral disk bhi isi file se bachti hai
+    jab tak instance zinda hai)."""
+    global GENERATION_COUNTER
+    if not os.path.exists(MEMORY_FILE):
+        return
+    try:
+        with open(MEMORY_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        for ag in data.get("all_fixed_sl_15_20_ai_agents", []):
+            # mode/mode_code mapping
+            mode = ag.get("mode", "ORIGINAL")
+            mode_codes = {"VeryTight": 0, "ORIGINAL": 1, "SUPER_LOOSE": 2,
+                          "AGGRESSIVE": 3, "Sw0.6_Wi1.2": 4, "Sw0.4_Wi0.8": 5,
+                          "Triple_Med": 6, "SUPER_LOOSE_2": 7}
+            key = f"{mode}_{ag.get('sl_setting','')}_{ag.get('tp_exit','')}_{ag.get('net_profit_001_lot','')}_{mode}"
+            GLOBAL_AI_MEMORY[key] = {
+                "mode": mode,
+                "mode_code": mode_codes.get(mode, 1),
+                "sl": 1.5, "tp": 3.0, "psw": 0.3, "pwk": 0.5, "pdp": 3.0,
+                "ptr": 100, "sess": False,
+                "fitness": float(ag.get("net_profit_001_lot", 0) or 0),
+                "target_score": float(ag.get("target_score", 0) or 0),
+                "trades": int(ag.get("trades_3yr", 0) or 0),
+                "win_rate": float(ag.get("win_rate", 0) or 0),
+                "net_profit": float(ag.get("net_profit_001_lot", 0) or 0),
+                "profit_factor": float(ag.get("profit_factor", 0) or 0),
+                "max_dd": float(ag.get("max_dd_001_lot", 0) or 0),
+            }
+        gen = data.get("generation_counter", 0)
+        if gen:
+            GENERATION_COUNTER = int(gen)
+        if GLOBAL_AI_MEMORY:
+            print(f"♻️  Restored {len(GLOBAL_AI_MEMORY):,} genomes from {os.path.basename(MEMORY_FILE)}")
+    except Exception as exc:  # noqa: BLE001
+        print(f"⚠️  Memory seed skip ({exc})")
+
 def run_continuous_ai_evolution_loop():
     global GENERATION_COUNTER, GLOBAL_AI_MEMORY
     load_dataset()
@@ -274,15 +363,23 @@ def run_continuous_ai_evolution_loop():
     ptr_options = [0, 100, 200]
     sess_options = [False, True]
 
-    print("🤖 24/7 Continuous AI Evolutionary Agent Daemon Started!")
+    # Restart-safe: purane strategy_memory se best genomes load karo (data na khoye)
+    _seed_memory_from_disk()
+
+    # Agents per generation — Render free tier ke liye auto-scaling
+    agents_per_gen = DEFAULT_AGENTS_PER_GEN
+    # RAM guard: free tier ~512MB, numba @njit 1M candles ~ per-agent few MB
+    top_n = DEFAULT_TOP_N
+    print(f"🤖 24/7 Continuous AI Evolutionary Agent Daemon Started! "
+          f"({agents_per_gen} agents/generation | top {top_n} saved)")
 
     while True:
         GENERATION_COUNTER += 1
         t0 = time.time()
 
-        # Batch mutate 20 AI Agent Genomes
+        # Batch mutate N AI Agent Genomes (configurable, up to Render CPU/RAM limit)
         batch_tasks = []
-        for _ in range(20):
+        for _ in range(agents_per_gen):
             m = random.choice(modes)
             sl = random.choice(sl_options)
             tp = random.choice(tp_options)
@@ -323,12 +420,12 @@ def run_continuous_ai_evolution_loop():
                                               x["win_rate"], x["trades"],
                                               x["profit_factor"]), reverse=True)
 
-        # Prepare Top 12 for Dashboard JSON
-        top_12_formatted = []
-        for rank_i, ag in enumerate(sorted_memory[:12], start=1):
+        # Prepare Top N for Dashboard JSON (configurable, default 50)
+        top_n_formatted = []
+        for rank_i, ag in enumerate(sorted_memory[:top_n], start=1):
             name = agent_names_pool[(rank_i - 1) % len(agent_names_pool)]
             tp_desc = f"Target TP ${ag['tp']}" if ag["tp"] > 0 else "C0 Candle Close"
-            top_12_formatted.append({
+            top_n_formatted.append({
                 "rank": rank_i,
                 "agent_name": name,
                 "mode": ag["mode"],
@@ -339,10 +436,11 @@ def run_continuous_ai_evolution_loop():
                 "net_profit_001_lot": ag["net_profit"],
                 "net_profit_010_lot": round(ag["net_profit"] * 10, 2),
                 "profit_factor": ag["profit_factor"],
-                "max_dd_001_lot": ag["max_dd"]
+                "max_dd_001_lot": ag["max_dd"],
+                "target_score": ag.get("target_score", 0.0)
             })
 
-        top_champ = top_12_formatted[0] if top_12_formatted else {
+        top_champ = top_n_formatted[0] if top_n_formatted else {
             "agent_name": "Agent Apex-Alpha", "mode": "VeryTight", "sl_setting": "Fixed SL $1.5",
             "tp_exit": "Target TP $3.0", "win_rate": 64.86, "trades_3yr": 74, "net_profit_001_lot": 101.21,
             "net_profit_010_lot": 1012.10, "profit_factor": 3.60, "max_dd_001_lot": 6.0
@@ -353,7 +451,8 @@ def run_continuous_ai_evolution_loop():
             "last_updated": time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime()),
             "ai_learning_status": "24/7 EVOLUTIONARY SEARCH ACTIVE (NON-STOP IMPROVING)",
             "generation_counter": GENERATION_COUNTER,
-            "total_simulated_ai_agents": GENERATION_COUNTER * 20,
+            "agents_per_generation": agents_per_gen,
+            "total_simulated_ai_agents": GENERATION_COUNTER * agents_per_gen,
             "total_candles_processed": len(CLOSES),
             "cycle_runtime_seconds": round(elapsed, 2),
             "champion_strategy": {
@@ -369,16 +468,19 @@ def run_continuous_ai_evolution_loop():
                     "max_drawdown_usd": top_champ["max_dd_001_lot"]
                 }
             },
-            "all_fixed_sl_15_20_ai_agents": top_12_formatted
+            "all_fixed_sl_15_20_ai_agents": top_n_formatted
         }
 
         with open(MEMORY_FILE, "w", encoding="utf-8") as f:
             json.dump(memory_json_data, f, indent=2)
 
-        print(f"⚡ Gen #{GENERATION_COUNTER:,} [{GENERATION_COUNTER * 20:,} AI Agents Evaluated] | Champion [{top_champ['agent_name']} | {top_champ['mode']}] WR: {top_champ['win_rate']}% | Trades: {top_champ['trades_3yr']} | PF: {top_champ['profit_factor']}")
+        print(f"⚡ Gen #{GENERATION_COUNTER:,} [{GENERATION_COUNTER * agents_per_gen:,} AI Agents Evaluated] | "
+              f"Champion [{top_champ['agent_name']} | {top_champ['mode']}] WR: {top_champ['win_rate']}% | "
+              f"Trades: {top_champ['trades_3yr']} | PF: {top_champ['profit_factor']} | "
+              f"{len(GLOBAL_AI_MEMORY):,} unique genomes")
         
-        # Sleep 1.5 seconds between generations
-        time.sleep(1.5)
+        # Sleep between generations — Render free tier pe CPU ko breathing room
+        time.sleep(float(os.environ.get("AI_GEN_SLEEP", "0.5")))
 
 
 def start_ai_daemon_thread():
