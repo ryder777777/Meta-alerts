@@ -1,7 +1,7 @@
 """
 Dashboard HTML template and status renderer for Meta-alerts.
 Serves a modern, dark-themed responsive dashboard for https://meta-alerts.onrender.com
-Includes Top 10 AI Agents Memory Leaderboard.
+Includes Top 10 AI Agents Memory Leaderboard + Dedicated SL $1.5 / TP $4.5 (1:3 RR) Results Table.
 """
 
 import json
@@ -25,7 +25,6 @@ def get_system_status():
     tg_chat = os.environ.get("TELEGRAM_CHAT_ID", "8105864100")
     service_id = os.environ.get("RENDER_SERVICE_ID", "srv-d9hm0gcm0tmc73b5depg")
     
-    # Load AI Agent Memory
     memory_path = os.path.join(os.path.dirname(__file__), "strategy_memory.json")
     ai_memory = {}
     if os.path.exists(memory_path):
@@ -55,15 +54,15 @@ def render_dashboard_html():
     status = get_system_status()
     memory = status.get("ai_memory", {})
     top_10 = memory.get("top_10_learned_agents", [])
-    champ = memory.get("champion_strategy", {})
+    sl15_tp45 = memory.get("sl15_tp45_1to3_agents", [])
 
     # Generate Top 10 Table Rows
-    rows_html = ""
+    rows_top10 = ""
     if top_10:
         for ag in top_10:
             rank = ag.get("rank", "-")
             rank_badge = "🥇" if rank == 1 else "🥈" if rank == 2 else "🥉" if rank == 3 else f"#{rank}"
-            rows_html += f"""
+            rows_top10 += f"""
             <tr>
                 <td style="font-weight: bold; color: var(--accent-cyan);">{rank_badge}</td>
                 <td><span class="badge-tag">{ag.get('mode', 'SUPER_LOOSE')}</span></td>
@@ -77,7 +76,27 @@ def render_dashboard_html():
             </tr>
             """
     else:
-        rows_html = "<tr><td colspan='9' style='text-align:center; color: var(--text-muted);'>Evaluating AI Agents...</td></tr>"
+        rows_top10 = "<tr><td colspan='9' style='text-align:center; color: var(--text-muted);'>Evaluating AI Agents...</td></tr>"
+
+    # Generate SL $1.5 / TP $4.5 Table Rows
+    rows_15_3 = ""
+    if sl15_tp45:
+        for ag in sl15_tp45:
+            rows_15_3 += f"""
+            <tr>
+                <td><span class="badge-tag">{ag.get('mode', 'SUPER_LOOSE')}</span></td>
+                <td>SL $1.50 / TP $4.50</td>
+                <td style="color: var(--accent-gold); font-weight:600;">1 : 3.00</td>
+                <td style="color: var(--accent-green); font-weight:700;">{ag.get('win_rate', 0)}%</td>
+                <td style="font-weight:600;">{ag.get('trades', 0):,}</td>
+                <td style="color: var(--accent-green); font-weight:700;">+${ag.get('net_profit_001_lot', 0):,.2f}</td>
+                <td style="color: var(--accent-green); font-weight:700;">+${ag.get('net_profit_010_lot', 0):,.2f}</td>
+                <td style="color: var(--accent-cyan); font-weight:600;">{ag.get('profit_factor', 0)}</td>
+                <td style="color: var(--accent-red);">${ag.get('max_dd_001_lot', 0):,.2f}</td>
+            </tr>
+            """
+    else:
+        rows_15_3 = "<tr><td colspan='9' style='text-align:center; color: var(--text-muted);'>Evaluating SL $1.5 / TP $4.5 Agents...</td></tr>"
 
     html = f"""<!DOCTYPE html>
 <html lang="en">
@@ -379,7 +398,7 @@ def render_dashboard_html():
     </div>
 
     <!-- TOP 10 AI AGENTS MEMORY LEADERBOARD -->
-    <div class="section-title">🤖 Top 10 AI Agents Strategy Memory Leaderboard (2023 - 2026 Gold M1 • 0.01 Lot)</div>
+    <div class="section-title">🏆 Top 10 Overall AI Agents Leaderboard (2023 - 2026 Gold M1 • 0.01 Lot)</div>
     <div class="table-card">
         <table>
             <thead>
@@ -396,7 +415,30 @@ def render_dashboard_html():
                 </tr>
             </thead>
             <tbody>
-                {rows_html}
+                {rows_top10}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- DEDICATED SL $1.5 / TP $4.5 (1:3 RISK:REWARD) AI AGENTS -->
+    <div class="section-title">🎯 Dedicated AI Agents Results: Stop Loss $1.50 / Take Profit $4.50 (1:3 Risk:Reward)</div>
+    <div class="table-card">
+        <table>
+            <thead>
+                <tr>
+                    <th>Strategy Mode</th>
+                    <th>SL / TP Setting</th>
+                    <th>Risk : Reward</th>
+                    <th>Win Rate (%)</th>
+                    <th>Total Trades</th>
+                    <th>Net Profit (0.01 Lot)</th>
+                    <th>Net Profit (0.10 Lot)</th>
+                    <th>Profit Factor</th>
+                    <th>Max Drawdown (0.01 Lot)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {rows_15_3}
             </tbody>
         </table>
     </div>
@@ -431,7 +473,7 @@ def render_dashboard_html():
             <div class="section-title">🖥️ Live System Console</div>
             <div class="terminal" id="console-logs">
                 <div class="log-line">[SYSTEM] Meta-alerts engine v2.0 initialized</div>
-                <div class="log-line">[AI_ENGINE] Loaded Top 10 AI Agents Memory Leaderboard</div>
+                <div class="log-line">[AI_ENGINE] Loaded Top 10 AI Agents + 1.5 SL / 4.5 TP (1:3 RR) Memory</div>
                 <div class="log-line">[SOURCE] cTrader Open API feed connected to IC Markets</div>
                 <div class="log-line">[STRATEGY] AB Touch Logic loaded from SECRET_LOGIC_B64</div>
                 <div class="log-line">[MODE] SUPER_LOOSE | Timeframe 1m</div>
