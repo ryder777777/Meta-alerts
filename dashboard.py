@@ -1,7 +1,7 @@
 """
 Dashboard HTML template and status renderer for Meta-alerts.
 Serves a modern, dark-themed responsive dashboard for https://meta-alerts.onrender.com
-Includes 100% 1:1 Replica Results for "AB Touch - TRUE FIRST TICK".
+Displays ALL AI Agents with Default SL = ATR x 1.5.
 """
 
 import json
@@ -20,7 +20,7 @@ def get_system_status():
     source = os.environ.get("BOT_SOURCE", "ctrader").upper()
     account_id = os.environ.get("CTRADER_ACCOUNT_ID", "6170046")
     host_type = os.environ.get("CTRADER_HOST_TYPE", "live").upper()
-    logic_mode = os.environ.get("LOGIC_MODE", "TRUE_FIRST_TICK")
+    logic_mode = os.environ.get("LOGIC_MODE", "TRUE_FIRST_TICK_ATR15")
     tf = os.environ.get("LOGIC_TF", "1m")
     tg_chat = os.environ.get("TELEGRAM_CHAT_ID", "8105864100")
     service_id = os.environ.get("RENDER_SERVICE_ID", "srv-d9hm0gcm0tmc73b5depg")
@@ -53,7 +53,7 @@ def get_system_status():
 def render_dashboard_html():
     status = get_system_status()
     memory = status.get("ai_memory", {})
-    top_modes = memory.get("top_learned_agents", [])
+    top_modes = memory.get("all_atr15_ai_agents", [])
 
     rows_pine = ""
     for ag in top_modes:
@@ -62,8 +62,8 @@ def render_dashboard_html():
         rows_pine += f"""
         <tr>
             <td style="font-weight: bold; color: var(--accent-cyan);">{rank_badge}</td>
-            <td><span class="badge-tag">{ag.get('mode', 'SUPER_LOOSE')}</span></td>
-            <td>{ag.get('sl_setting', 'Fixed $3.0')}</td>
+            <td><span class="badge-tag">{ag.get('mode', 'VeryTight')}</span></td>
+            <td>{ag.get('sl_setting', 'ATR × 1.5 Default')}</td>
             <td><span style="font-size:12px; color:var(--accent-cyan);">{ag.get('filter', 'London/NY')}</span></td>
             <td style="color: var(--accent-green); font-weight:800; font-size:16px;">🔥 {ag.get('win_rate', 0)}%</td>
             <td style="font-weight:700; color:var(--accent-gold);">{ag.get('trades_3yr', 0):,} Trades</td>
@@ -400,7 +400,7 @@ def render_dashboard_html():
             <div class="brand-icon">⚡</div>
             <div class="brand-title">
                 <h1>Meta-Alerts Live Control Center</h1>
-                <p>Pine Script v6 Replica: AB Touch - TRUE FIRST TICK • 100% Zero Repaint Execution</p>
+                <p>Pine Script v6 Replica • Default SL = ATR × 1.5 • 100% Zero Repaint Execution</p>
             </div>
         </div>
         <div class="status-pill">
@@ -420,19 +420,19 @@ def render_dashboard_html():
         </div>
 
         <div class="card">
-            <div class="card-label">Indicator Code</div>
+            <div class="card-label">Default SL Setting</div>
             <div class="card-value">
-                <span style="color: var(--accent-cyan);">Pine Script v6</span>
+                <span style="color: var(--accent-gold);">ATR × 1.5 DEFAULT</span>
             </div>
-            <div class="card-sub">AB Touch - TRUE FIRST TICK (1:1 Replica)</div>
+            <div class="card-sub">Applied to All AI Agents</div>
         </div>
 
         <div class="card">
             <div class="card-label">Execution Rule</div>
             <div class="card-value">
-                <span style="color: var(--accent-green);">isC0FirstTick</span>
+                <span style="color: var(--accent-green);">100% NO REPAINT</span>
             </div>
-            <div class="card-sub">barstate.isnew C0 Candle Open Entry Only</div>
+            <div class="card-sub">barstate.isnew C0 Open First Tick Entry Only</div>
         </div>
 
         <div class="card">
@@ -444,8 +444,8 @@ def render_dashboard_html():
         </div>
     </div>
 
-    <!-- 🌲 PINE SCRIPT v6 AB TOUCH TRUE FIRST TICK LEADERBOARD -->
-    <div class="section-title">🌲 Pine Script v6 "AB Touch - TRUE FIRST TICK" AI Agents Results (1.06 Million Gold M1)</div>
+    <!-- 🌲 PINE SCRIPT v6 DEFAULT ATR x 1.5 SL LEADERBOARD -->
+    <div class="section-title">🌲 Pine Script v6 "AB Touch - TRUE FIRST TICK" (Default SL = ATR × 1.5 for ALL AI Agents)</div>
     <div class="table-card">
         <table>
             <thead>
@@ -493,7 +493,7 @@ def render_dashboard_html():
             <div class="terminal" id="console-logs">
                 <div class="log-line">[SYSTEM] Meta-alerts engine v2.0 initialized</div>
                 <div class="log-line">[RULE] 100% Zero Repaint | isC0FirstTick = barstate.isnew Entry Only</div>
-                <div class="log-line">[SCRIPT] AB Touch - TRUE FIRST TICK Evaluated on 1.06M Candles</div>
+                <div class="log-line">[SL_RULE] Default SL = ATR x 1.5 set for ALL AI Agents</div>
                 <div class="log-line">[SOURCE] cTrader Open API feed connected to IC Markets</div>
                 <div class="log-line">[STRATEGY] AB Touch Logic loaded from SECRET_LOGIC_B64</div>
                 <div class="log-line">[STATUS] Listening for live tick signals...</div>
