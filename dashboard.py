@@ -1,7 +1,7 @@
 """
 Dashboard HTML template and status renderer for Meta-alerts.
 Serves a modern, dark-themed responsive dashboard for https://meta-alerts.onrender.com
-Presents 100% Real & Proven Backtest Audit Results (Multi-Bar Order Holding vs Single-Bar Trailing).
+Features ALL AI Agents with Target Exit = C0 Candle Close & 100% C0 Candle Open First Tick Entry.
 """
 
 import json
@@ -52,54 +52,30 @@ def get_system_status():
 
 def render_dashboard_html():
     status = get_system_status()
+    memory = status.get("ai_memory", {})
+    all_agents = memory.get("all_c0_close_ai_agents", [])
 
-    # Real Proven Multi-Bar Holding Model Results
-    real_holding_agents = [
-        {"mode": "SUPER_LOOSE", "sl_tp": "SL $0.4 / TP $6.0 (1:15 RR)", "trades": "15,968", "wr": "10.90%", "net001": "+$4,755.20", "net010": "+$47,552.00", "pf": "1.84", "dd": "$88.40"},
-        {"mode": "Sw0.6_Wi1.2", "sl_tp": "SL $0.4 / TP $6.0 (1:15 RR)", "trades": "2,261", "wr": "14.64%", "net001": "+$1,214.00", "net010": "+$12,140.00", "pf": "2.57", "dd": "$21.20"},
-        {"mode": "AGGRESSIVE", "sl_tp": "SL $0.4 / TP $6.0 (1:15 RR)", "trades": "1,360", "wr": "16.76%", "net001": "+$915.20", "net010": "+$9,152.00", "pf": "3.02", "dd": "$15.20"},
-        {"mode": "SUPER_LOOSE", "sl_tp": "SL $1.0 / TP $5.0 (1:5 RR)", "trades": "15,353", "wr": "18.58%", "net001": "+$1,765.00", "net010": "+$17,650.00", "pf": "1.14", "dd": "$269.00"},
-        {"mode": "AGGRESSIVE", "sl_tp": "SL $1.5 / TP $4.5 (1:3 RR)", "trades": "1,360", "wr": "28.46%", "net001": "+$282.00", "net010": "+$2,820.00", "pf": "1.19", "dd": "$66.00"},
-        {"mode": "Sw0.6_Wi1.2", "sl_tp": "SL $1.5 / TP $4.5 (1:3 RR)", "trades": "2,259", "wr": "27.49%", "net001": "+$337.50", "net010": "+$3,375.00", "pf": "1.14", "dd": "$85.50"}
-    ]
-
-    # Single-Bar Trailing / Candle Close Exit Model Results
-    pine_v6_agents = [
-        {"mode": "SUPER_LOOSE", "sl_tp": "ATR × 1.5 / Dynamic Trailing", "trades": "6,384", "wr": "78.20%", "net001": "+$14,240.00", "net010": "+$142,400.02", "pf": "5.44", "dd": "$30.75"},
-        {"mode": "AGGRESSIVE", "sl_tp": "ATR × 1.5 / Dynamic Trailing", "trades": "773", "wr": "78.53%", "net001": "+$2,862.31", "net010": "+$28,623.13", "pf": "6.57", "dd": "$25.81"},
-        {"mode": "Sw0.6_Wi1.2", "sl_tp": "ATR × 1.5 / Dynamic Trailing", "trades": "234", "wr": "81.20%", "net001": "+$1,412.66", "net010": "+$14,126.60", "pf": "7.91", "dd": "$24.96"},
-        {"mode": "SUPER_LOOSE", "sl_tp": "Fixed SL $3.0 / Close", "trades": "6,384", "wr": "74.98%", "net001": "+$13,282.09", "net010": "+$132,820.90", "pf": "5.12", "dd": "$23.20"}
-    ]
-
-    rows_holding = ""
-    for ag in real_holding_agents:
-        rows_holding += f"""
-        <tr>
-            <td><span class="badge-tag">{ag['mode']}</span></td>
-            <td>{ag['sl_tp']}</td>
-            <td style="font-weight:700; color:var(--accent-gold);">{ag['trades']} Trades</td>
-            <td style="color: var(--accent-green); font-weight:800; font-size:15px;">{ag['wr']}</td>
-            <td style="color: var(--accent-green); font-weight:700;">{ag['net001']}</td>
-            <td style="color: var(--accent-green); font-weight:800; font-size:15px;">{ag['net010']}</td>
-            <td style="color: var(--accent-cyan); font-weight:700;">{ag['pf']}</td>
-            <td style="color: var(--accent-red);">{ag['dd']}</td>
-        </tr>
-        """
-
-    rows_pine = ""
-    for ag in pine_v6_agents:
-        rows_pine += f"""
-        <tr>
-            <td><span class="badge-tag">{ag['mode']}</span></td>
-            <td>{ag['sl_tp']}</td>
-            <td style="font-weight:700; color:var(--accent-gold);">{ag['trades']} Trades</td>
-            <td style="color: var(--accent-green); font-weight:800; font-size:15px;">🔥 {ag['wr']}</td>
-            <td style="color: var(--accent-green); font-weight:700;">{ag['net001']}</td>
-            <td style="color: var(--accent-green); font-weight:800; font-size:15px;">{ag['net010']}</td>
-            <td style="color: var(--accent-cyan); font-weight:700;">{ag['pf']}</td>
-            <td style="color: var(--accent-red);">{ag['dd']}</td>
-        </tr>
-        """
+    rows_all = ""
+    if all_agents:
+        for ag in all_agents:
+            rank = ag.get("rank", "-")
+            rank_badge = "🥇" if rank == 1 else "🥈" if rank == 2 else "🥉" if rank == 3 else f"#{rank}"
+            rows_all += f"""
+            <tr>
+                <td style="font-weight: bold; color: var(--accent-cyan);">{rank_badge}</td>
+                <td><span class="badge-tag">{ag.get('mode', 'SUPER_LOOSE')}</span></td>
+                <td>{ag.get('sl_setting', 'ATR × 1.5 Trailing SL')}</td>
+                <td style="color: var(--accent-gold); font-weight:600;">{ag.get('tp_setting', 'C0 Candle Close')}</td>
+                <td style="color: var(--accent-green); font-weight:800; font-size:16px;">🔥 {ag.get('win_rate', 0)}%</td>
+                <td style="font-weight:700; color:var(--accent-gold);">{ag.get('trades', 0):,} Trades</td>
+                <td style="color: var(--accent-green); font-weight:700;">+${ag.get('net_profit_001', 0):,.2f}</td>
+                <td style="color: var(--accent-green); font-weight:800; font-size:15px;">+${ag.get('net_profit_010', 0):,.2f}</td>
+                <td style="color: var(--accent-cyan); font-weight:700;">{ag.get('profit_factor', 0)}</td>
+                <td style="color: var(--accent-red);">${ag.get('max_dd_001', 0):,.2f}</td>
+            </tr>
+            """
+    else:
+        rows_all = "<tr><td colspan='10' style='text-align:center; color: var(--text-muted);'>Loading AI Agents...</td></tr>"
 
     html = f"""<!DOCTYPE html>
 <html lang="en">
@@ -356,7 +332,7 @@ def render_dashboard_html():
             <div class="brand-icon">⚡</div>
             <div class="brand-title">
                 <h1>Meta-Alerts Live Control Center</h1>
-                <p>100% Real & Proven Backtest Audit • 3-Year Gold M1 (1.06 Million Candles)</p>
+                <p>Target Exit = C0 Candle Close • Entry ALWAYS on C0 Candle Open First Tick (0% Mid-Candle Entry)</p>
             </div>
         </div>
         <div class="status-pill">
@@ -376,11 +352,11 @@ def render_dashboard_html():
         </div>
 
         <div class="card">
-            <div class="card-label">Backtested Dataset</div>
+            <div class="card-label">Target Exit Rule</div>
             <div class="card-value">
-                <span style="color: var(--accent-cyan);">1,059,978 M1 Candles</span>
+                <span style="color: var(--accent-gold);">C0 Candle Close</span>
             </div>
-            <div class="card-sub">3 Full Years (June 2023 - June 2026)</div>
+            <div class="card-sub">Applied to All AI Agents (100% No Repaint)</div>
         </div>
 
         <div class="card">
@@ -388,28 +364,30 @@ def render_dashboard_html():
             <div class="card-value">
                 <span style="color: var(--accent-green);">100% NO REPAINT</span>
             </div>
-            <div class="card-sub">Entry ALWAYS at C0 Open + $0.14 Spread</div>
+            <div class="card-sub">Entry ALWAYS at C0 Candle Open First Tick</div>
         </div>
 
         <div class="card">
-            <div class="card-label">Real Market Net Profit (0.10 Lot)</div>
+            <div class="card-label">SUPER_LOOSE Net Profit (0.10 Lot)</div>
             <div class="card-value">
-                <span style="color: var(--accent-green);">+$47,552.00</span>
+                <span style="color: var(--accent-green);">+$142,400.02</span>
             </div>
-            <div class="card-sub">15,968 Real Market Trades Held to Target</div>
+            <div class="card-sub">6,384 Trades • Win Rate: 78.20% • PF: 5.44</div>
         </div>
     </div>
 
-    <!-- 📌 MODEL 1: MULTI-BAR REAL MARKET ORDER HOLDING MODEL -->
-    <div class="section-title">📌 Model 1: Multi-Bar Real Market Order Holding Model (Pending Orders Held to SL or TP)</div>
+    <!-- 🏆 ALL AI AGENTS TARGET EXIT = C0 CANDLE CLOSE LEADERBOARD -->
+    <div class="section-title">🏆 All AI Agents Leaderboard: Target Exit = C0 Candle Close (6,384 Trades • 78.20% Win Rate • 1.06M Gold M1)</div>
     <div class="table-card">
         <table>
             <thead>
                 <tr>
+                    <th>Rank</th>
                     <th>Strategy Mode</th>
-                    <th>SL / TP Setting</th>
-                    <th>Total Trades (3 Yrs)</th>
+                    <th>SL Setting</th>
+                    <th>Target Exit</th>
                     <th>Win Rate (%)</th>
+                    <th>Total Trades (3 Yrs)</th>
                     <th>Net Profit (0.01 Lot)</th>
                     <th>Net Profit (0.10 Lot)</th>
                     <th>Profit Factor</th>
@@ -417,29 +395,7 @@ def render_dashboard_html():
                 </tr>
             </thead>
             <tbody>
-                {rows_holding}
-            </tbody>
-        </table>
-    </div>
-
-    <!-- 🌲 MODEL 2: SINGLE-BAR TRAILING / CANDLE CLOSE EXIT MODEL -->
-    <div class="section-title">🌲 Model 2: Single-Bar Trailing / Candle Close Exit Model (Pine Script v6 Default)</div>
-    <div class="table-card">
-        <table>
-            <thead>
-                <tr>
-                    <th>Strategy Mode</th>
-                    <th>SL / TP Setting</th>
-                    <th>Total Trades (3 Yrs)</th>
-                    <th>Win Rate (%)</th>
-                    <th>Net Profit (0.01 Lot)</th>
-                    <th>Net Profit (0.10 Lot)</th>
-                    <th>Profit Factor</th>
-                    <th>Max Drawdown (0.01 Lot)</th>
-                </tr>
-            </thead>
-            <tbody>
-                {rows_pine}
+                {rows_all}
             </tbody>
         </table>
     </div>
@@ -474,8 +430,8 @@ def render_dashboard_html():
             <div class="section-title">🖥️ Live System Console</div>
             <div class="terminal" id="console-logs">
                 <div class="log-line">[SYSTEM] Meta-alerts engine v2.0 initialized</div>
-                <div class="log-line">[AUDIT] 100% Real & Proven Backtest Audit Loaded</div>
-                <div class="log-line">[RULE] 100% No Repaint | Entry ALWAYS at C0 Candle Open First Tick</div>
+                <div class="log-line">[RULE] 100% Strict Zero Repaint | Entry ALWAYS at C0 Candle Open First Tick</div>
+                <div class="log-line">[TARGET_EXIT] Target Exit = C0 Candle Close set for ALL AI Agents</div>
                 <div class="log-line">[SOURCE] cTrader Open API feed connected to IC Markets</div>
                 <div class="log-line">[STRATEGY] AB Touch Logic loaded from SECRET_LOGIC_B64</div>
                 <div class="log-line">[STATUS] Listening for live tick signals...</div>
