@@ -253,7 +253,7 @@
             <div class="brand-icon">⚡</div>
             <div class="brand-title">
                 <h1>Meta-Alerts Live Control Center</h1>
-                <p>SUPER_LOOSE High-Frequency Engine • 6,384 Trades @ 78.20% Win Rate (100% No Repaint)</p>
+                <p>100% Real & Proven Backtest Audit • 3-Year Gold M1 (1.06 Million Candles)</p>
             </div>
         </div>
         <div class="status-pill">
@@ -273,11 +273,11 @@
         </div>
 
         <div class="card">
-            <div class="card-label">Strategy Mode & Volume</div>
+            <div class="card-label">Backtested Dataset</div>
             <div class="card-value">
-                <span style="color: var(--accent-gold);">SUPER_LOOSE</span>
+                <span style="color: var(--accent-cyan);">1,059,978 M1 Candles</span>
             </div>
-            <div class="card-sub">6,384 Trades (3 Years) • ~6-7 Trades / Day</div>
+            <div class="card-sub">3 Full Years (June 2023 - June 2026)</div>
         </div>
 
         <div class="card">
@@ -285,29 +285,28 @@
             <div class="card-value">
                 <span style="color: var(--accent-green);">100% NO REPAINT</span>
             </div>
-            <div class="card-sub">Entry ALWAYS at C0 Candle Open First Tick</div>
+            <div class="card-sub">Entry ALWAYS at C0 Open + $0.14 Spread</div>
         </div>
 
         <div class="card">
-            <div class="card-label">3-Year Net Profit (0.10 Lot)</div>
+            <div class="card-label">Real Market Net Profit (0.10 Lot)</div>
             <div class="card-value">
-                <span style="color: var(--accent-green);">+$142,400.02</span>
+                <span style="color: var(--accent-green);">+$47,552.00</span>
             </div>
-            <div class="card-sub">Win Rate: 78.20% • Profit Factor: 5.44</div>
+            <div class="card-sub">15,968 Real Market Trades Held to Target</div>
         </div>
     </div>
 
-    <!-- 🏆 HIGH-FREQUENCY HIGH-WINRATE CHAMPION AGENTS LEADERBOARD -->
-    <div class="section-title">🏆 High-Frequency High Win-Rate Leaderboard (6,384 Trades • 78.20% Win Rate • 1.06M Gold M1 Candles)</div>
+    <!-- 📌 MODEL 1: MULTI-BAR REAL MARKET ORDER HOLDING MODEL -->
+    <div class="section-title">📌 Model 1: Multi-Bar Real Market Order Holding Model (Pending Orders Held to SL or TP)</div>
     <div class="table-card">
         <table>
             <thead>
                 <tr>
-                    <th>Rank</th>
                     <th>Strategy Mode</th>
-                    <th>SL Setting</th>
-                    <th>Win Rate (%)</th>
+                    <th>SL / TP Setting</th>
                     <th>Total Trades (3 Yrs)</th>
+                    <th>Win Rate (%)</th>
                     <th>Net Profit (0.01 Lot)</th>
                     <th>Net Profit (0.10 Lot)</th>
                     <th>Profit Factor</th>
@@ -316,37 +315,85 @@
             </thead>
             <tbody>
                 <tr>
-                    <td style="font-weight: bold; color: var(--accent-cyan);">🥇</td>
                     <td><span class="badge-tag">SUPER_LOOSE</span></td>
-                    <td>ATR × 1.5 Trailing SL</td>
-                    <td style="color: var(--accent-green); font-weight:800; font-size:16px;">🔥 78.20%</td>
+                    <td>SL $0.4 / TP $6.0 (1:15 RR)</td>
+                    <td style="font-weight:700; color:var(--accent-gold);">15,968 Trades</td>
+                    <td style="color: var(--accent-green); font-weight:800; font-size:15px;">10.90%</td>
+                    <td style="color: var(--accent-green); font-weight:700;">+$4,755.20</td>
+                    <td style="color: var(--accent-green); font-weight:800; font-size:15px;">+$47,552.00</td>
+                    <td style="color: var(--accent-cyan); font-weight:700;">1.84</td>
+                    <td style="color: var(--accent-red);">$88.40</td>
+                </tr>
+                <tr>
+                    <td><span class="badge-tag">Sw0.6_Wi1.2</span></td>
+                    <td>SL $0.4 / TP $6.0 (1:15 RR)</td>
+                    <td style="font-weight:700; color:var(--accent-gold);">2,261 Trades</td>
+                    <td style="color: var(--accent-green); font-weight:800; font-size:15px;">14.64%</td>
+                    <td style="color: var(--accent-green); font-weight:700;">+$1,214.00</td>
+                    <td style="color: var(--accent-green); font-weight:800; font-size:15px;">+$12,140.00</td>
+                    <td style="color: var(--accent-cyan); font-weight:700;">2.57</td>
+                    <td style="color: var(--accent-red);">$21.20</td>
+                </tr>
+                <tr>
+                    <td><span class="badge-tag">AGGRESSIVE</span></td>
+                    <td>SL $0.4 / TP $6.0 (1:15 RR)</td>
+                    <td style="font-weight:700; color:var(--accent-gold);">1,360 Trades</td>
+                    <td style="color: var(--accent-green); font-weight:800; font-size:15px;">16.76%</td>
+                    <td style="color: var(--accent-green); font-weight:700;">+$915.20</td>
+                    <td style="color: var(--accent-green); font-weight:800; font-size:15px;">+$9,152.00</td>
+                    <td style="color: var(--accent-cyan); font-weight:700;">3.02</td>
+                    <td style="color: var(--accent-red);">$15.20</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- 🌲 MODEL 2: SINGLE-BAR TRAILING / CANDLE CLOSE EXIT MODEL -->
+    <div class="section-title">🌲 Model 2: Single-Bar Trailing / Candle Close Exit Model (Pine Script v6 Default)</div>
+    <div class="table-card">
+        <table>
+            <thead>
+                <tr>
+                    <th>Strategy Mode</th>
+                    <th>SL / TP Setting</th>
+                    <th>Total Trades (3 Yrs)</th>
+                    <th>Win Rate (%)</th>
+                    <th>Net Profit (0.01 Lot)</th>
+                    <th>Net Profit (0.10 Lot)</th>
+                    <th>Profit Factor</th>
+                    <th>Max Drawdown (0.01 Lot)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><span class="badge-tag">SUPER_LOOSE</span></td>
+                    <td>ATR × 1.5 / Dynamic Trailing</td>
                     <td style="font-weight:700; color:var(--accent-gold);">6,384 Trades</td>
+                    <td style="color: var(--accent-green); font-weight:800; font-size:15px;">🔥 78.20%</td>
                     <td style="color: var(--accent-green); font-weight:700;">+$14,240.00</td>
                     <td style="color: var(--accent-green); font-weight:800; font-size:15px;">+$142,400.02</td>
                     <td style="color: var(--accent-cyan); font-weight:700;">5.44</td>
                     <td style="color: var(--accent-red);">$30.75</td>
                 </tr>
                 <tr>
-                    <td style="font-weight: bold; color: var(--accent-cyan);">🥈</td>
                     <td><span class="badge-tag">AGGRESSIVE</span></td>
-                    <td>ATR × 1.5 Trailing SL</td>
-                    <td style="color: var(--accent-green); font-weight:800; font-size:16px;">🔥 78.53%</td>
+                    <td>ATR × 1.5 / Dynamic Trailing</td>
                     <td style="font-weight:700; color:var(--accent-gold);">773 Trades</td>
+                    <td style="color: var(--accent-green); font-weight:800; font-size:15px;">🔥 78.53%</td>
                     <td style="color: var(--accent-green); font-weight:700;">+$2,862.31</td>
                     <td style="color: var(--accent-green); font-weight:800; font-size:15px;">+$28,623.13</td>
                     <td style="color: var(--accent-cyan); font-weight:700;">6.57</td>
                     <td style="color: var(--accent-red);">$25.81</td>
                 </tr>
                 <tr>
-                    <td style="font-weight: bold; color: var(--accent-cyan);">🥉</td>
-                    <td><span class="badge-tag">SUPER_LOOSE</span></td>
-                    <td>Fixed SL $3.0</td>
-                    <td style="color: var(--accent-green); font-weight:800; font-size:16px;">🔥 74.98%</td>
-                    <td style="font-weight:700; color:var(--accent-gold);">6,384 Trades</td>
-                    <td style="color: var(--accent-green); font-weight:700;">+$13,282.09</td>
-                    <td style="color: var(--accent-green); font-weight:800; font-size:15px;">+$132,820.90</td>
-                    <td style="color: var(--accent-cyan); font-weight:700;">5.12</td>
-                    <td style="color: var(--accent-red);">$23.20</td>
+                    <td><span class="badge-tag">Sw0.6_Wi1.2</span></td>
+                    <td>ATR × 1.5 / Dynamic Trailing</td>
+                    <td style="font-weight:700; color:var(--accent-gold);">234 Trades</td>
+                    <td style="color: var(--accent-green); font-weight:800; font-size:15px;">🔥 81.20%</td>
+                    <td style="color: var(--accent-green); font-weight:700;">+$1,412.66</td>
+                    <td style="color: var(--accent-green); font-weight:800; font-size:15px;">+$14,126.60</td>
+                    <td style="color: var(--accent-cyan); font-weight:700;">7.91</td>
+                    <td style="color: var(--accent-red);">$24.96</td>
                 </tr>
             </tbody>
         </table>
@@ -360,7 +407,7 @@
                   <div id="tradingview_chart" style="height:100%;width:100%"></div>
                   <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
                   <script type="text/javascript">
-                  new TradingView.widget({
+                  new TradingView.widget({{
                     "autosize": true,
                     "symbol": "OANDA:XAUUSD",
                     "interval": "1",
@@ -372,7 +419,7 @@
                     "enable_publishing": false,
                     "allow_symbol_change": false,
                     "container_id": "tradingview_chart"
-                  });
+                  }});
                   </script>
                 </div>
             </div>
@@ -380,16 +427,18 @@
 
         <div>
             <div class="section-title">🖥️ Live System Console</div>
-            <div class="terminal">
+            <div class="terminal" id="console-logs">
                 <div class="log-line">[SYSTEM] Meta-alerts engine v2.0 initialized</div>
-                <div class="log-line">[RULE] 100% Strict Zero Repaint | Entry ALWAYS at C0 Candle Open First Tick</div>
-                <div class="log-line">[CHAMPION] SUPER_LOOSE Active (6,384 Trades @ 78.20% Win Rate | +$142,400.02)</div>
+                <div class="log-line">[AUDIT] 100% Real & Proven Backtest Audit Loaded</div>
+                <div class="log-line">[RULE] 100% No Repaint | Entry ALWAYS at C0 Candle Open First Tick</div>
                 <div class="log-line">[SOURCE] cTrader Open API feed connected to IC Markets</div>
                 <div class="log-line">[STRATEGY] AB Touch Logic loaded from SECRET_LOGIC_B64</div>
                 <div class="log-line">[STATUS] Listening for live tick signals...</div>
             </div>
 
-            <a href="https://meta-alerts.onrender.com/ctrader" class="btn btn-outline" target="_blank">🔐 Re-authorize cTrader OAuth</a>
+            <div style="margin-top: 16px;">
+                <a href="/ctrader" class="btn btn-outline" target="_blank">🔐 Re-authorize cTrader OAuth</a>
+            </div>
         </div>
     </div>
 </div>
