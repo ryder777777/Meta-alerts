@@ -1,7 +1,7 @@
 """
 Dashboard HTML template and status renderer for Meta-alerts.
 Serves a modern, dark-themed responsive dashboard for https://meta-alerts.onrender.com
-Dynamic Live Real-Time Auto-Updating AI Agents Leaderboard & Heartbeat.
+Displays Champion AI Agent's Name, Strategy Mode, Win Rate %, Total Trades, and Profit Factor dynamically.
 """
 
 import json
@@ -61,12 +61,20 @@ def render_dashboard_html():
     top_modes = memory.get("all_fixed_sl_15_20_ai_agents", [])
     gen_cnt = memory.get("generation_counter", 1)
     tot_evals = memory.get("total_simulated_ai_agents", 250)
+    champ = memory.get("champion_strategy", {})
+    champ_perf = champ.get("performance_3yr_0_01_lot", {})
+
+    agent_names = [
+        "Agent Apex-Alpha", "Agent Titan-One", "Agent Nexus-Core", "Agent Orion-Prime",
+        "Agent Vector-V5", "Agent Hyperion-X", "Agent Cyber-Quantum", "Agent Astra-7",
+        "Agent Phoenix-9", "Agent Matrix-01", "Agent Spectre-X", "Agent Chronos-3"
+    ]
 
     rows_pine = ""
     for idx, ag in enumerate(top_modes):
         rank = ag.get("rank", idx + 1)
         rank_badge = "🥇" if rank == 1 else "🥈" if rank == 2 else "🥉" if rank == 3 else f"#{rank}"
-        agent_name = ag.get("agent_name", f"Agent Alpha-{rank}")
+        agent_name = ag.get("agent_name", agent_names[idx % len(agent_names)])
         rows_pine += f"""
         <tr>
             <td style="font-weight: bold; color: var(--accent-cyan);">{rank_badge}</td>
@@ -447,9 +455,14 @@ def render_dashboard_html():
         <div class="card">
             <div class="card-label">Top AI Agent Champion</div>
             <div class="card-value">
-                <span style="color: var(--accent-green);" id="champ-name">Agent Apex-Alpha</span>
+                <span style="color: var(--accent-green);" id="champ-name">{champ.get('agent_name', 'Agent Apex-Alpha')}</span>
+                <span class="badge-tag" id="champ-mode">{champ.get('mode', 'VeryTight')}</span>
             </div>
-            <div class="card-sub"><span id="champ-wr">64.86% Win Rate</span> • <span id="champ-pf">3.60 Profit Factor</span></div>
+            <div class="card-sub">
+                <strong id="champ-wr" style="color:var(--accent-green);">{champ_perf.get('win_rate_percent', 64.86)}% Win Rate</strong> • 
+                <span id="champ-trades" style="color:var(--accent-gold);">{champ_perf.get('total_trades', 74):,} Trades</span> • 
+                <span id="champ-pf" style="color:var(--accent-cyan); font-weight:700;">{champ_perf.get('profit_factor', 3.60)} PF</span>
+            </div>
         </div>
     </div>
 
@@ -502,9 +515,10 @@ def render_dashboard_html():
             <div class="section-title">🖥️ Live System Console</div>
             <div class="terminal" id="console-logs">
                 <div class="log-line">[SYSTEM] Meta-alerts engine v2.0 initialized</div>
-                <div class="log-line">[AI_DAEMON] 24/7 Live Evolutionary AI Agents Search Active</div>
                 <div class="log-line">[RULE] 100% Zero Repaint | isC0FirstTick = barstate.isnew Entry Only</div>
+                <div class="log-line">[AI_DAEMON] 24/7 Live Evolutionary AI Agents Search Active</div>
                 <div class="log-line">[SOURCE] cTrader Open API feed connected to IC Markets</div>
+                <div class="log-line">[STRATEGY] AB Touch Logic loaded from SECRET_LOGIC_B64</div>
                 <div class="log-line">[STATUS] Listening for live tick signals...</div>
             </div>
 
@@ -678,7 +692,6 @@ def render_dashboard_html():
             if (clockEl && data.timestamp_utc) clockEl.innerText = data.timestamp_utc;
             if (uptimeEl && data.uptime_str) uptimeEl.innerText = data.uptime_str;
 
-            // AI Memory Dynamic Auto-Updates
             const mem = data.ai_memory || {{}};
             const genEl = document.getElementById('ai-gen-count');
             const evalEl = document.getElementById('ai-eval-count');
@@ -686,7 +699,22 @@ def render_dashboard_html():
             if (genEl && mem.generation_counter) genEl.innerText = 'Gen #' + mem.generation_counter;
             if (evalEl && mem.total_simulated_ai_agents) evalEl.innerText = mem.total_simulated_ai_agents.toLocaleString() + ' AI Agents Evaluated';
 
-            // Dynamic Leaderboard Re-rendering
+            // Champion Card Dynamic Update
+            const champ = mem.champion_strategy || {{}};
+            const champPerf = champ.performance_3yr_0_01_lot || {{}};
+            const champNameEl = document.getElementById('champ-name');
+            const champModeEl = document.getElementById('champ-mode');
+            const champWrEl = document.getElementById('champ-wr');
+            const champTradesEl = document.getElementById('champ-trades');
+            const champPfEl = document.getElementById('champ-pf');
+
+            if (champNameEl && champ.agent_name) champNameEl.innerText = champ.agent_name;
+            if (champModeEl && champ.mode) champModeEl.innerText = champ.mode;
+            if (champWrEl && champPerf.win_rate_percent !== undefined) champWrEl.innerText = champPerf.win_rate_percent.toFixed(2) + '% Win Rate';
+            if (champTradesEl && champPerf.total_trades !== undefined) champTradesEl.innerText = champPerf.total_trades.toLocaleString() + ' Trades';
+            if (champPfEl && champPerf.profit_factor !== undefined) champPfEl.innerText = champPerf.profit_factor.toFixed(2) + ' PF';
+
+            // Leaderboard Dynamic Update
             const agents = mem.all_fixed_sl_15_20_ai_agents || [];
             if (agents.length > 0) {{
                 const tbody = document.getElementById('leaderboard-body');

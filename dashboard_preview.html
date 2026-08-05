@@ -324,12 +324,12 @@
             <div class="brand-icon">⚡</div>
             <div class="brand-title">
                 <h1>Meta-Alerts Live Control Center</h1>
-                <p>24/7 Live Evolutionary AI Agent Engine • 1,059,978 M1 Gold Candles</p>
+                <p>Realtime AI Agents Heartbeat Monitor • IC Markets Feed</p>
             </div>
         </div>
         <div class="status-pill">
             <div class="pulse-dot"></div>
-            <span id="live-header-status">24/7 AI AGENTS EVOLVING</span>
+            <span id="live-header-status">10,000 AI AGENTS ACTIVE</span>
         </div>
     </header>
 
@@ -363,13 +363,18 @@
             <div class="card-label">Top AI Agent Champion</div>
             <div class="card-value">
                 <span style="color: var(--accent-green);" id="champ-name">Agent Apex-Alpha</span>
+                <span class="badge-tag" id="champ-mode">VeryTight</span>
             </div>
-            <div class="card-sub"><span id="champ-wr">64.86% Win Rate</span> • <span id="champ-pf">3.60 Profit Factor</span></div>
+            <div class="card-sub">
+                <strong id="champ-wr" style="color:var(--accent-green);">64.86% Win Rate</strong> • 
+                <span id="champ-trades" style="color:var(--accent-gold);">74 Trades</span> • 
+                <span id="champ-pf" style="color:var(--accent-cyan); font-weight:700;">3.60 PF</span>
+            </div>
         </div>
     </div>
 
-    <!-- 🤖 LIVE AUTO-UPDATING AI AGENTS LEADERBOARD -->
-    <div class="section-title">🤖 Live AI Agents Strategy Leaderboard (2023 - 2026 Gold M1 • Fixed SL $1.5 / $2.0)</div>
+    <!-- 🏆 STRICT FIXED SL $1.5 OR $2.0 AI AGENTS LEADERBOARD -->
+    <div class="section-title">🤖 AI Agents Strategy Leaderboard (Fixed SL $1.5 or $2.0 • 1.06 Million Gold M1)</div>
     <div class="table-card">
         <table>
             <thead>
@@ -456,7 +461,8 @@
             <div class="terminal" id="console-logs">
                 <div class="log-line">[SYSTEM] Meta-alerts engine v2.0 initialized</div>
                 <div class="log-line">[RULE] 100% Zero Repaint | isC0FirstTick = barstate.isnew Entry Only</div>
-                <div class="log-line">[AI_DAEMON] 24/7 Live Evolutionary AI Agents Search Active</div>
+                <div class="log-line">[SL_RULE] Fixed SL = $1.5 or $2.0 ONLY Enforced</div>
+                <div class="log-line">[AI_AGENTS] Loaded Named AI Agents (Agent Apex-Alpha, Agent Titan-One, etc.)</div>
                 <div class="log-line">[SOURCE] cTrader Open API feed connected to IC Markets</div>
                 <div class="log-line">[STRATEGY] AB Touch Logic loaded from SECRET_LOGIC_B64</div>
                 <div class="log-line">[STATUS] Listening for live tick signals...</div>
@@ -637,6 +643,20 @@
             
             if (genEl && mem.generation_counter) genEl.innerText = 'Gen #' + mem.generation_counter;
             if (evalEl && mem.total_simulated_ai_agents) evalEl.innerText = mem.total_simulated_ai_agents.toLocaleString() + ' AI Agents Evaluated';
+
+            const champ = mem.champion_strategy || {};
+            const champPerf = champ.performance_3yr_0_01_lot || {};
+            const champNameEl = document.getElementById('champ-name');
+            const champModeEl = document.getElementById('champ-mode');
+            const champWrEl = document.getElementById('champ-wr');
+            const champTradesEl = document.getElementById('champ-trades');
+            const champPfEl = document.getElementById('champ-pf');
+
+            if (champNameEl && champ.agent_name) champNameEl.innerText = champ.agent_name;
+            if (champModeEl && champ.mode) champModeEl.innerText = champ.mode;
+            if (champWrEl && champPerf.win_rate_percent !== undefined) champWrEl.innerText = champPerf.win_rate_percent.toFixed(2) + '% Win Rate';
+            if (champTradesEl && champPerf.total_trades !== undefined) champTradesEl.innerText = champPerf.total_trades.toLocaleString() + ' Trades';
+            if (champPfEl && champPerf.profit_factor !== undefined) champPfEl.innerText = champPerf.profit_factor.toFixed(2) + ' PF';
 
             const agents = mem.all_fixed_sl_15_20_ai_agents || [];
             if (agents.length > 0) {
