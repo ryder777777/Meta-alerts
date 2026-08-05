@@ -224,11 +224,13 @@ def main():
 
     # Baseline champions
     baselines = [
+        ("ORIGINAL", 3, 0.4, 6.0, 0.1, 1.2, 2.0, 0),
         ("Sw0.6_Wi1.2", 1, 0.5, 4.9, 0.1, 0.6, 1.5, 0),
         ("SUPER_LOOSE", 0, 1.0, 5.0, 0.3, 0.5, 3.0, 0),
         ("SUPER_LOOSE", 0, 1.0, 4.0, 0.3, 0.5, 3.0, 0),
         ("AGGRESSIVE", 6, 1.0, 5.0, 0.3, 0.5, 3.0, 0),
         ("AGGRESSIVE", 6, 0.8, 5.0, 0.3, 0.5, 3.0, 0),
+        ("VeryTight", 4, 0.4, 5.0, 0.1, 1.5, 4.0, 100),
     ]
 
     for b in baselines:
@@ -257,14 +259,13 @@ def main():
             "pTr": random.choice(ptr_options)
         })
 
-    print(f"⚡ Running {len(agent_tasks):,} AI Agent Backtests across 1.06 Million Candles...")
+    print(f"⚡ Running Active AI Agent Backtests across 1.06 Million Candles...")
     t0 = time.time()
 
     # Pre-warm JIT
     _ = simulate_agent_genome(opens[:1000], highs[:1000], lows[:1000], closes[:1000], 0, 1.5, 3.0, 0.3, 0.5, 3.0, 0, fixed_lot)
 
     results = []
-    # Fast evaluation loop with progress updates
     for idx, agent in enumerate(agent_tasks):
         pnls = simulate_agent_genome(
             opens, highs, lows, closes,
@@ -280,8 +281,23 @@ def main():
             best_so_far = max(results, key=lambda x: x["fitness"])
             print(f"Progress: [{idx + 1:,}/{total_agents_target:,} Active AI Agents] ({elapsed:.1f}s) | Current Best [{best_so_far['mode']}] SL ${best_so_far['sl']} / TP ${best_so_far['tp']} -> Net Profit: +${best_so_far['net_profit']:,.2f} | PF: {best_so_far['profit_factor']}")
 
-            # Save progressive checkpoint to memory file
+            # Save top 10 agents
             results.sort(key=lambda x: x["fitness"], reverse=True)
+            top_10 = []
+            for rank_i, ag in enumerate(results[:10], start=1):
+                top_10.append({
+                    "rank": rank_i,
+                    "mode": ag["mode"],
+                    "sl": ag["sl"],
+                    "tp": ag["tp"],
+                    "risk_reward": f"1:{ag['tp']/ag['sl']:.2f}",
+                    "win_rate": ag["win_rate"],
+                    "trades": ag["trades"],
+                    "net_profit": ag["net_profit"],
+                    "profit_factor": ag["profit_factor"],
+                    "max_dd": ag["max_dd"]
+                })
+
             top_curr = results[0]
             memory_checkpoint = {
                 "last_updated": time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime()),
@@ -308,13 +324,12 @@ def main():
                         "max_drawdown_usd": top_curr["max_dd"]
                     }
                 },
-                "top_5_learned_agents": results[:5]
+                "top_10_learned_agents": top_10
             }
             with open(MEMORY_FILE, "w", encoding="utf-8") as f:
                 json.dump(memory_checkpoint, f, indent=2)
 
-            # Cap max evaluations per turn to keep response fast
-            if elapsed > 35:
+            if elapsed > 30:
                 print(f"⏹️ Checkpoint saved after evaluating {idx + 1:,} active AI agents in {elapsed:.1f}s!")
                 break
 
@@ -337,7 +352,6 @@ def main():
     print(f"Profit Factor          : {top_overall['profit_factor']}")
     print(f"Max Drawdown           : ${top_overall['max_dd']:,.2f}")
     print("="*80)
-    print(f"💾 Lightweight AI Memory saved to {MEMORY_FILE} (File size: {os.path.getsize(MEMORY_FILE)} bytes)")
 
 if __name__ == "__main__":
     main()
