@@ -487,6 +487,14 @@ def start_health_server() -> None:
 
 def run() -> None:
     start_health_server()
+    # Start 24/7 Continuous AI Agent Evolutionary Self-Improvement Thread
+    try:
+        from ai_agent_daemon import start_ai_daemon_thread
+        start_ai_daemon_thread()
+        log.info("24/7 Continuous AI Agent Evolutionary Self-Improvement Daemon Thread Started!")
+    except Exception as exc:
+        log.warning("AI Daemon start failed: %s", exc)
+
     symbols = [s.upper() for s in RT["symbols"]]
     interval = RT.get("interval", "1m")
     source = os.environ.get("BOT_SOURCE", RT.get("source", "crypto"))
