@@ -3,7 +3,10 @@ __pycache__/
 .venv/
 venv/
 .env
-*.log
+# Data files (keep repository lightweight)
+*.csv
+uploads/
+/home/user/uploads/
 
 # ======== PRIVACY: yeh files kabhi GitHub pe NAHI jaayengi ========
 # tokens wali config

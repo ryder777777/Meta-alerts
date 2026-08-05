@@ -381,22 +381,28 @@ def run_ctrader(symbols, interval) -> None:
 
 
 def start_health_server() -> None:
-    """Render/web hosting ke liye tiny /health endpoint (UptimeRobot ping ke liye)."""
+    """Render/web hosting ke liye Live Control Center Dashboard + /ctrader OAuth endpoint."""
     from http.server import BaseHTTPRequestHandler, HTTPServer
+    from dashboard import render_dashboard_html, get_system_status, add_dashboard_log
 
     class H(BaseHTTPRequestHandler):
-        def _ok(self, body=b"meta-alerts ok"):
+        def _ok(self, body=b"meta-alerts ok", content_type="text/html; charset=utf-8"):
             self.send_response(200)
-            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Type", content_type)
             self.end_headers()
             if body:
-                self.wfile.write(body)
+                self.wfile.write(body if isinstance(body, bytes) else body.encode("utf-8"))
 
         def do_GET(self):
             if self.path.startswith("/ctrader"):
                 self._handle_ctrader_oauth()
                 return
-            self._ok()
+            if self.path.startswith("/api/status"):
+                status_json = json.dumps(get_system_status())
+                self._ok(status_json, content_type="application/json")
+                return
+            # Default GET / serves Live Control Center Dashboard
+            self._ok(render_dashboard_html())
 
         def do_HEAD(self):
             self._ok(b"")
