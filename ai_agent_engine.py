@@ -1,7 +1,10 @@
 """
-Autonomous Multi-Agent AI Strategy Optimization, Loss Analysis & Self-Improvement Engine.
-Continuous 24/7 Backtesting & Parameter Evolution over 1.06 Million M1 Gold Candles (2023-2026).
-Rule: 100% No Repaint | Entry ALWAYS on C0 Candle Open First Tick | C1 Closed Confirmation.
+Strict 100% Zero Repaint Pine v6 Exact Replica AI Agent Optimization Engine.
+Data: 3-Year Gold M1 (1,059,978 Candles | June 2023 - June 2026).
+Rules Enforced:
+1. Trend Filters evaluated strictly on C1 Closed Bar (close[i-1]).
+2. Zone Detection evaluated strictly on C1 Closed Bar vs C3 (close[i-1] vs close[i-3]).
+3. Entry ALWAYS at C0 Candle Open First Tick (opens[i] + spread_comp). No Mid-Candle Entry!
 """
 
 import os
@@ -52,186 +55,141 @@ def fast_ema(vals, n):
 
 
 @njit
-def simulate_agent_with_loss_diagnostics(
+def simulate_strict_pine_v6_agent(
     opens, highs, lows, closes, hours,
-    mode_code, sl_dollars, tp_dollars,
-    pSw, pWk, pDp, pTr,
-    min_c1_body=0.0, use_session_filter=False,
-    fixed_lot=0.01
+    mode_code, use_fixed_sl=True, fixed_sl=3.0, atr_mult=1.5,
+    sp_comp=0.14, fixed_lot=0.01
 ):
     """
-    100% NON-REPAINTING ENGINE + DEEP LOSS DIAGNOSTICS:
-    - Analyzes exactly WHY losses occurred:
-      1 = Counter-trend spike
-      2 = Asian session low-volume chop
-      3 = Weak C1 momentum body
-      4 = Insufficient zone displacement
+    STRICT 100% ZERO REPAINT PINE v6 REPLICA:
+    - Trend Filter: C1 Closed Bar (close[i-1])
+    - Zone Birth & Detection: C1 Closed Bar vs C3 (close[i-1] vs close[i-3])
+    - Entry: ALWAYS opens[i] + spComp (C0 Candle Open First Tick)
+    - Exit: SL Hit OR C0 Candle Close
     """
     n = len(closes)
-    tol = 0.25 if mode_code in (0, 7) else 0.0
+
+    pSw = 0.3 if (mode_code in (0, 7)) else 0.6 if mode_code == 1 else 0.4 if mode_code == 2 else 1.0 if mode_code == 3 else 1.5 if mode_code == 4 else 0.8
+    pWk = 0.5 if (mode_code in (0, 7)) else 1.2 if mode_code == 1 else 0.8 if mode_code == 2 else 2.0 if mode_code == 3 else 2.5 if mode_code == 4 else 1.5
+    pDp = 3.0 if (mode_code in (0, 7)) else 5.0 if (mode_code in (1, 2)) else 8.0 if (mode_code in (3, 4)) else 4.0
+    pTr = 200 if (mode_code in (3, 4)) else 100 if (mode_code in (1, 2, 5, 6)) else 0
 
     e50 = fast_ema(closes, 50)
     e100 = fast_ema(closes, 100)
     e200 = fast_ema(closes, 200)
 
-    last_traded_buy_zone = -100000
-    last_traded_sell_zone = -100000
+    tr = np.zeros(n, dtype=np.float64)
+    tr[0] = highs[0] - lows[0]
+    for idx in range(1, n):
+        tr[idx] = max(highs[idx] - lows[idx], abs(highs[idx] - closes[idx - 1]), abs(lows[idx] - closes[idx - 1]))
+    atr = fast_ema(tr, 14)
+
+    last_buy_c1_bar = -100000
+    last_sell_c1_bar = -100000
 
     bLo = bHi = rLo = rHi = -1.0
     bTm = rTm = -100000
 
-    max_trades = 60000
+    max_trades = 100000
     pnls = np.zeros(max_trades, dtype=np.float64)
-    loss_reasons = np.zeros(max_trades, dtype=np.int32)
     trade_count = 0
 
-    in_trade = False
-    active_side = 0
-    active_entry = 0.0
-    active_sl = 0.0
-    active_tp = 0.0
-    active_entry_idx = 0
-    active_trend_ok = False
-
     for i in range(200, n):
-        i_closed = i - 1
-        i2_bar = i_closed - 2
+        # 1. POI Detection strictly on CLOSED bar C1 (closes[i-1]) vs C3 (closes[i-3])
+        c1 = i - 1
+        c2_bar = i - 2
+        c3_bar = i - 3
 
-        o2, h2, l2, c2 = opens[i2_bar], highs[i2_bar], lows[i2_bar], closes[i2_bar]
-        c0_closed = closes[i_closed]
+        o3, h3, l3, c3 = opens[c3_bar], highs[c3_bar], lows[c3_bar], closes[c3_bar]
+        c1_val = closes[c1]
 
-        if c2 < o2 and (c2 - c0_closed) >= pDp and c0_closed > h2:
-            bLo = min(l2, h2)
-            bHi = max(l2, h2)
-            bTm = i2_bar
-        if c2 > o2 and (c2 - c0_closed) >= pDp and c0_closed < l2:
-            rLo = min(l2, h2)
-            rHi = max(l2, h2)
-            rTm = i2_bar
+        bOB_b = (c3 < o3) and ((c1_val - c3) >= pDp) and (c1_val > h3)
+        sOB_b = (c3 > o3) and ((c3 - c1_val) >= pDp) and (c1_val < l3)
 
-        h0_bar, l0_bar = highs[i_closed], lows[i_closed]
-        if l0_bar > h2:
-            bLo = min((l0_bar + h2) / 2.0, h2)
-            bHi = max((l0_bar + h2) / 2.0, h2)
-            bTm = i2_bar
-        if h0_bar < l2:
-            rLo = min(l2, (h0_bar + l2) / 2.0)
-            rHi = max(l2, (h0_bar + l2) / 2.0)
-            rTm = i2_bar
+        h1_val, l1_val = highs[c1], lows[c1]
+        bFG_b = l1_val > h3
+        sFG_b = h1_val < l3
+
+        if bOB_b:
+            bLo = l3
+            bHi = h3
+            bTm = c3_bar
+        if sOB_b:
+            rLo = l3
+            rHi = h3
+            rTm = c3_bar
+
+        if bFG_b:
+            bLo = (l1_val + h3) / 2.0
+            bHi = h3
+            bTm = c3_bar
+        if sFG_b:
+            rLo = l3
+            rHi = (h1_val + l3) / 2.0
+            rTm = c3_bar
 
         if (i - bTm) > 480:
             bLo = bHi = -1.0
         if (i - rTm) > 480:
             rLo = rHi = -1.0
 
-        if in_trade:
-            cur_h = highs[i]
-            cur_l = lows[i]
-            closed = False
-            exit_p = 0.0
-            is_win = False
+        # 2. Trend Filter strictly on C1 Closed Bar
+        mediumUp_c1 = (closes[c1] > e50[c1]) and (closes[c1] > e100[c1]) if not np.isnan(e100[c1]) else False
+        strictUp_c1 = (closes[c1] > e100[c1]) and (closes[c1] > e200[c1]) if not np.isnan(e200[c1]) else False
+        mediumDn_c1 = (closes[c1] < e50[c1]) and (closes[c1] < e100[c1]) if not np.isnan(e100[c1]) else False
+        strictDn_c1 = (closes[c1] < e100[c1]) and (closes[c1] < e200[c1]) if not np.isnan(e200[c1]) else False
 
-            if active_side == 1:
-                if cur_l <= active_sl:
-                    exit_p = active_sl
-                    closed = True
-                    is_win = False
-                elif cur_h >= active_tp:
-                    exit_p = active_tp
-                    closed = True
-                    is_win = True
+        bullSetup = (bLo >= 0) and ((c1 - bTm) >= 1) and (closes[c2_bar] >= bLo) and (closes[c2_bar] <= bHi) and ((lows[c2_bar] - lows[c1]) >= pSw) and (closes[c1] >= lows[c2_bar]) and ((closes[c1] - lows[c1]) >= pWk)
+        bearSetup = (rLo >= 0) and ((c1 - rTm) >= 1) and (closes[c2_bar] >= rLo) and (closes[c2_bar] <= rHi) and ((highs[c1] - highs[c2_bar]) >= pSw) and (closes[c1] <= highs[c2_bar]) and ((highs[c1] - closes[c1]) >= pWk)
+
+        tk_buy = True if pTr == 0 else (mediumUp_c1 if pTr == 100 else strictUp_c1)
+        tk_sell = True if pTr == 0 else (mediumDn_c1 if pTr == 100 else strictDn_c1)
+
+        fireBuy = bullSetup and tk_buy and (last_buy_c1_bar != c1)
+        fireSell = bearSetup and tk_sell and (last_sell_c1_bar != c1)
+
+        slDist = fixed_sl if use_fixed_sl else (atr[i] * atr_mult)
+
+        # 3. ENTRY ALWAYS AT C0 CANDLE OPEN FIRST TICK
+        if fireBuy:
+            last_buy_c1_bar = c1
+            aE = opens[i] + sp_comp
+            aS = aE - slDist
+
+            hitSL = lows[i] <= aS
+            if hitSL:
+                pnl_pts = -slDist
             else:
-                if cur_h >= active_sl:
-                    exit_p = active_sl
-                    closed = True
-                    is_win = False
-                elif cur_l <= active_tp:
-                    exit_p = active_tp
-                    closed = True
-                    is_win = True
+                livePnL = closes[i] - aE
+                pnl_pts = livePnL
 
-            if closed:
-                pnl_pts = (exit_p - active_entry) if active_side == 1 else (active_entry - exit_p)
-                pnl_usd = pnl_pts * 100.0 * fixed_lot
-                pnls[trade_count] = pnl_usd
+            pnl_usd = pnl_pts * 100.0 * fixed_lot
+            pnls[trade_count] = pnl_usd
+            trade_count += 1
 
-                if not is_win:
-                    # Diagnose Loss Cause
-                    entry_hr = hours[active_entry_idx]
-                    if entry_hr < 7 or entry_hr >= 21:
-                        loss_reasons[trade_count] = 2 # Asian Chop Loss
-                    elif not active_trend_ok:
-                        loss_reasons[trade_count] = 1 # Counter-trend Loss
-                    elif pDp < 3.0:
-                        loss_reasons[trade_count] = 4 # Weak Displacement Loss
-                    else:
-                        loss_reasons[trade_count] = 3 # Market Noise / Standard Loss
+        elif fireSell:
+            last_sell_c1_bar = c1
+            aE = opens[i] - sp_comp
+            aS = aE + slDist
 
-                trade_count += 1
-                in_trade = False
+            hitSL = highs[i] >= aS
+            if hitSL:
+                pnl_pts = -slDist
+            else:
+                livePnL = aE - closes[i]
+                pnl_pts = livePnL
 
-        if not in_trade:
-            if use_session_filter:
-                hr = hours[i]
-                if hr < 7 or hr >= 20:
-                    continue
+            pnl_usd = pnl_pts * 100.0 * fixed_lot
+            pnls[trade_count] = pnl_usd
+            trade_count += 1
 
-            i1 = i - 2
-            i2 = i - 3
-
-            medUp = (closes[i1] > e50[i1]) and (closes[i1] > e100[i1]) if not np.isnan(e100[i1]) else False
-            strUp = (closes[i1] > e100[i1]) and (closes[i1] > e200[i1]) if not np.isnan(e200[i1]) else False
-            medDn = (closes[i1] < e50[i1]) and (closes[i1] < e100[i1]) if not np.isnan(e100[i1]) else False
-            strDn = (closes[i1] < e100[i1]) and (closes[i1] < e200[i1]) if not np.isnan(e200[i1]) else False
-
-            tk_buy = True if pTr == 0 else (medUp if pTr == 100 else strUp)
-            tk_sell = True if pTr == 0 else (medDn if pTr == 100 else strDn)
-
-            c1_body = abs(closes[i1] - opens[i1])
-            body_ok = (c1_body >= min_c1_body)
-
-            bull_setup = (bLo >= 0 and (i - bTm) >= 1 and bTm != last_traded_buy_zone
-                          and closes[i2] >= (bLo - tol) and closes[i2] <= (bHi + tol)
-                          and (lows[i2] - lows[i1]) >= pSw
-                          and closes[i1] >= lows[i2]
-                          and (closes[i1] - lows[i1]) >= pWk
-                          and body_ok)
-
-            bear_setup = (rLo >= 0 and (i - rTm) >= 1 and rTm != last_traded_sell_zone
-                          and closes[i2] >= (rLo - tol) and closes[i2] <= (rHi + tol)
-                          and (highs[i1] - highs[i2]) >= pSw
-                          and closes[i1] <= highs[i2]
-                          and (highs[i1] - closes[i1]) >= pWk
-                          and body_ok)
-
-            sig = 0
-            if bull_setup and tk_buy:
-                sig = 1
-                last_traded_buy_zone = bTm
-            elif bear_setup and tk_sell:
-                sig = -1
-                last_traded_sell_zone = rTm
-
-            if sig != 0:
-                in_trade = True
-                active_side = sig
-                active_entry = opens[i] # ENTRY ALWAYS ON C0 OPEN FIRST TICK
-                active_sl = active_entry - sl_dollars if sig == 1 else active_entry + sl_dollars
-                active_tp = active_entry + tp_dollars if sig == 1 else active_entry - tp_dollars
-                active_entry_idx = i
-                active_trend_ok = (strUp if sig == 1 else strDn)
-
-    return pnls[:trade_count], loss_reasons[:trade_count]
+    return pnls[:trade_count]
 
 
-def evaluate_agent(pnls, loss_reasons):
+def evaluate_agent(pnls):
     n_trades = len(pnls)
     if n_trades < 10:
-        return {
-            "fitness": -999, "trades": n_trades, "win_rate": 0,
-            "net_profit": 0, "profit_factor": 0, "max_dd": 0,
-            "loss_breakdown": {"asian_chop": 0, "counter_trend": 0, "weak_displacement": 0, "market_noise": 0}
-        }
+        return {"fitness": -999, "trades": n_trades, "win_rate": 0, "net_profit": 0, "profit_factor": 0, "max_dd": 0}
 
     wins = np.sum(pnls > 0)
     losses = np.sum(pnls <= 0)
@@ -245,16 +203,6 @@ def evaluate_agent(pnls, loss_reasons):
     peak = np.maximum.accumulate(cum_pnl)
     max_dd = abs(np.min(cum_pnl - peak))
 
-    # Loss Root Cause Analysis
-    loss_mask = (pnls <= 0)
-    total_losses = np.sum(loss_mask) if np.sum(loss_mask) > 0 else 1
-    reasons_in_losses = loss_reasons[loss_mask]
-
-    asian_chop_pct = round((np.sum(reasons_in_losses == 2) / total_losses) * 100.0, 1)
-    counter_trend_pct = round((np.sum(reasons_in_losses == 1) / total_losses) * 100.0, 1)
-    weak_disp_pct = round((np.sum(reasons_in_losses == 4) / total_losses) * 100.0, 1)
-    noise_pct = round((np.sum(reasons_in_losses == 3) / total_losses) * 100.0, 1)
-
     fitness = net_profit * (pf ** 1.5) * (win_rate / 20.0) / (max_dd + 1.0)
 
     return {
@@ -263,13 +211,7 @@ def evaluate_agent(pnls, loss_reasons):
         "win_rate": round(win_rate, 2),
         "net_profit": round(net_profit, 2),
         "profit_factor": round(pf, 2),
-        "max_dd": round(max_dd, 2),
-        "loss_breakdown": {
-            "asian_chop": asian_chop_pct,
-            "counter_trend": counter_trend_pct,
-            "weak_displacement": weak_disp_pct,
-            "market_noise": noise_pct
-        }
+        "max_dd": round(max_dd, 2)
     }
 
 
@@ -283,90 +225,59 @@ def run_continuous_ai_optimization_step(df=None):
     hours = df["DATETIME"].dt.hour.values.astype(np.int32)
 
     fixed_lot = 0.01
-    modes = ["SUPER_LOOSE", "Sw0.6_Wi1.2", "Sw0.4_Wi0.8", "ORIGINAL", "VeryTight", "Triple_Med", "AGGRESSIVE"]
+    modes = ["Sw0.6_Wi1.2", "SUPER_LOOSE", "AGGRESSIVE", "Triple_Med", "SUPER_LOOSE_2", "VeryTight", "ORIGINAL", "Sw0.4_Wi0.8"]
     mode_map = {m: idx for idx, m in enumerate(modes)}
 
-    # High Win Rate + High RR Candidate Generation
-    sl_options = [0.4, 0.5, 0.8, 1.0, 1.2, 1.5, 2.0]
-    tp_options = [2.0, 2.4, 3.0, 3.5, 4.0, 4.5, 5.0, 6.0]
-    psw_options = [0.1, 0.2, 0.3, 0.4, 0.6, 0.8, 1.0]
-    pwk_options = [0.3, 0.5, 0.6, 0.8, 1.0, 1.2]
-    pdp_options = [2.0, 3.0, 4.0, 5.0, 6.0]
-    ptr_options = [0, 100, 200]
-    sess_options = [False, True]
-
-    # Evaluate batch of 500 AI Agents
-    agent_tasks = []
-    # Seed top baselines first
-    baselines = [
-        ("AGGRESSIVE", 6, 1.2, 2.4, 0.3, 1.0, 3.0, 100, True),
-        ("VeryTight", 4, 1.2, 2.4, 0.3, 0.5, 3.0, 100, True),
-        ("ORIGINAL", 3, 1.0, 2.0, 0.1, 0.5, 3.0, 100, True),
-        ("Sw0.6_Wi1.2", 1, 1.5, 3.0, 0.1, 0.6, 1.5, 0, False),
-        ("SUPER_LOOSE", 0, 1.5, 3.0, 0.3, 0.5, 3.0, 0, False),
-        ("VeryTight", 4, 1.5, 4.5, 0.1, 1.5, 4.0, 200, False),
-        ("ORIGINAL", 3, 0.4, 6.0, 0.1, 1.2, 2.0, 0, False),
+    sl_configs = [
+        ("ATR x 1.5", False, 3.0, 1.5),
+        ("ATR x 2.0", False, 3.0, 2.0),
+        ("Fixed $3.0", True, 3.0, 1.5),
+        ("Fixed $2.0", True, 2.0, 1.5),
+        ("Fixed $1.5", True, 1.5, 1.5),
+        ("Fixed $1.0", True, 1.0, 1.5),
     ]
-
-    for b in baselines:
-        agent_tasks.append({
-            "mode": b[0], "mode_code": b[1], "sl": b[2], "tp": b[3],
-            "pSw": b[4], "pWk": b[5], "pDp": b[6], "pTr": b[7], "sess": b[8]
-        })
-
-    random.seed(int(time.time() * 1000) % 100000)
-    while len(agent_tasks) < 500:
-        m = random.choice(modes)
-        agent_tasks.append({
-            "mode": m,
-            "mode_code": mode_map[m],
-            "sl": random.choice(sl_options),
-            "tp": random.choice(tp_options),
-            "pSw": random.choice(psw_options),
-            "pWk": random.choice(pwk_options),
-            "pDp": random.choice(pdp_options),
-            "pTr": random.choice(ptr_options),
-            "sess": random.choice(sess_options)
-        })
 
     t0 = time.time()
     results = []
 
     # Prewarm JIT
-    _ = simulate_agent_with_loss_diagnostics(opens[:1000], highs[:1000], lows[:1000], closes[:1000], hours[:1000], 0, 1.5, 3.0, 0.3, 0.5, 3.0, 0, 0.0, False, 0.01)
+    _ = simulate_strict_pine_v6_agent(opens[:1000], highs[:1000], lows[:1000], closes[:1000], hours[:1000], 0, False, 3.0, 1.5, 0.14, fixed_lot)
 
-    for agent in agent_tasks:
-        pnls, loss_reasons = simulate_agent_with_loss_diagnostics(
-            opens, highs, lows, closes, hours,
-            agent["mode_code"], agent["sl"], agent["tp"],
-            agent["pSw"], agent["pWk"], agent["pDp"], agent["pTr"],
-            0.0, agent["sess"], fixed_lot
-        )
-        eval_res = evaluate_agent(pnls, loss_reasons)
-        results.append({**agent, **eval_res})
+    for m_code, mode in enumerate(modes):
+        for sl_desc, use_fixed, fixed_sl, atr_m in sl_configs:
+            pnls = simulate_strict_pine_v6_agent(
+                opens, highs, lows, closes, hours,
+                m_code, use_fixed, fixed_sl, atr_m, 0.14, fixed_lot
+            )
+            eval_res = evaluate_agent(pnls)
+            results.append({
+                "mode": mode,
+                "mode_code": m_code,
+                "sl_setting": sl_desc,
+                "use_fixed_sl": use_fixed,
+                "fixed_sl": fixed_sl,
+                "atr_mult": atr_m,
+                **eval_res
+            })
 
     total_time = time.time() - t0
-    results.sort(key=lambda x: x["fitness"], reverse=True)
+    results.sort(key=lambda x: x["win_rate"], reverse=True)
     top_overall = results[0]
 
-    # Format top 10 agents
     top_10 = []
     for rank_i, ag in enumerate(results[:10], start=1):
         top_10.append({
             "rank": rank_i,
             "mode": ag["mode"],
-            "sl": ag["sl"],
-            "tp": ag["tp"],
-            "risk_reward": f"1:{ag['tp']/ag['sl']:.2f}",
-            "filter": "London/NY + EMA" if ag["sess"] else "24h Session",
+            "sl_setting": ag["sl_setting"],
             "win_rate": ag["win_rate"],
             "trades": ag["trades"],
-            "net_profit": ag["net_profit"],
+            "net_profit_001": ag["net_profit"],
+            "net_profit_010": round(ag["net_profit"] * 10, 2),
             "profit_factor": ag["profit_factor"],
-            "max_dd": ag["max_dd"]
+            "max_dd_001": ag["max_dd"]
         })
 
-    # Read existing iteration counter
     iteration = 1
     if os.path.exists(MEMORY_FILE):
         try:
@@ -379,28 +290,14 @@ def run_continuous_ai_optimization_step(df=None):
     memory_data = {
         "last_updated": time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime()),
         "ai_continuous_learning_iteration": iteration,
-        "total_active_ai_agents_simulated": iteration * 500,
+        "total_active_ai_agents_simulated": iteration * len(modes) * len(sl_configs),
         "position_size_lot": fixed_lot,
         "total_candles_processed": len(closes),
         "optimization_runtime_seconds": round(total_time, 2),
-        "execution_guarantee": "100% NO REPAINT (Confirmed C1 Close + C0 Candle Open First Tick Entry)",
-        "perfect_trade_rules_learned": {
-            "entry_trigger": "Exact C0 Candle Open First Tick (No Mid-Candle Repaint)",
-            "session_filter": "London/NY Volatility Hours (07:00 - 20:00 UTC)",
-            "trend_confluence": "EMA 50 / EMA 100 / EMA 200 Triple Alignment (pTr = 100/200)",
-            "zone_displacement": "Min $3.0 - $5.0 Displacement Impulse (pDp >= 3.0)",
-            "wick_rejection": "Min $0.5 - $1.0 Wick Rejection (pWk >= 0.5)"
-        },
-        "ai_loss_root_cause_analysis": top_overall.get("loss_breakdown", {}),
+        "execution_guarantee": "100% STRICT ZERO REPAINT (C1 Closed Trend & Zone + C0 Candle Open First Tick Entry)",
         "champion_strategy": {
             "mode": top_overall["mode"],
-            "sl_dollars": top_overall["sl"],
-            "tp_dollars": top_overall["tp"],
-            "risk_reward_ratio": f"1:{top_overall['tp']/top_overall['sl']:.2f}",
-            "pSw": top_overall["pSw"],
-            "pWk": top_overall["pWk"],
-            "pDp": top_overall["pDp"],
-            "pTr": top_overall["pTr"],
+            "sl_setting": top_overall["sl_setting"],
             "performance_3yr_0_01_lot": {
                 "position_size": "0.01 Lot ($1.0 per $1 Gold move)",
                 "total_trades": top_overall["trades"],
@@ -410,13 +307,13 @@ def run_continuous_ai_optimization_step(df=None):
                 "max_drawdown_usd": top_overall["max_dd"]
             }
         },
-        "top_10_learned_agents": top_10
+        "top_pine_v6_modes": top_10
     }
 
     with open(MEMORY_FILE, "w", encoding="utf-8") as f:
         json.dump(memory_data, f, indent=2)
 
-    print(f"✅ AI Iteration #{iteration} Completed in {total_time:.2f}s | Champion [{top_overall['mode']}] SL ${top_overall['sl']} / TP ${top_overall['tp']} -> WR: {top_overall['win_rate']}% | Profit: +${top_overall['net_profit']:,.2f} | PF: {top_overall['profit_factor']}")
+    print(f"✅ AI Iteration #{iteration} Completed in {total_time:.2f}s | Champion [{top_overall['mode']} | {top_overall['sl_setting']}] -> Win Rate: {top_overall['win_rate']}% | Profit Factor: {top_overall['profit_factor']} | Net Profit: +${top_overall['net_profit']:,.2f}")
 
 if __name__ == "__main__":
     run_continuous_ai_optimization_step()
