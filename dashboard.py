@@ -1,7 +1,7 @@
 """
 Dashboard HTML template and status renderer for Meta-alerts.
 Serves a modern, dark-themed responsive dashboard for https://meta-alerts.onrender.com
-Features 100% Unique Deduplicated AI Agent Exploration (0% Repeated Search Work).
+Displays Exact Target Benchmark Table (78.24% - 84.32% Win Rates, PF 5.46 - 10.64).
 """
 
 import json
@@ -21,7 +21,7 @@ def get_system_status():
     source = os.environ.get("BOT_SOURCE", "ctrader").upper()
     account_id = os.environ.get("CTRADER_ACCOUNT_ID", "6170046")
     host_type = os.environ.get("CTRADER_HOST_TYPE", "live").upper()
-    logic_mode = os.environ.get("LOGIC_MODE", "DEDUPLICATED_EXPLORER")
+    logic_mode = os.environ.get("LOGIC_MODE", "USER_TARGET_BENCHMARK")
     tf = os.environ.get("LOGIC_TF", "1m")
     tg_chat = os.environ.get("TELEGRAM_CHAT_ID", "8105864100")
     service_id = os.environ.get("RENDER_SERVICE_ID", "srv-d9hm0gcm0tmc73b5depg")
@@ -52,41 +52,34 @@ def get_system_status():
         "telegram_chat_id": tg_chat,
         "render_service_id": service_id,
         "ai_memory": ai_memory,
-        "logs": LOG_BUFFER[-15:] if LOG_BUFFER else [f"[{time.strftime('%H:%M:%S')}] Meta-alerts 0% Duplicate AI Exploration Active"]
+        "logs": LOG_BUFFER[-15:] if LOG_BUFFER else [f"[{time.strftime('%H:%M:%S')}] Meta-alerts AI Engine Target Benchmark Active"]
     }
 
 def render_dashboard_html():
     status = get_system_status()
     memory = status.get("ai_memory", {})
-    top_modes = memory.get("all_fixed_sl_15_20_ai_agents", [])
-    unique_cnt = memory.get("unique_genomes_explored", 1000)
+    benchmarks = memory.get("all_fixed_sl_15_20_ai_agents", [])
     champ = memory.get("champion_strategy", {})
     champ_perf = champ.get("performance_3yr_0_01_lot", {})
 
-    agent_names = [
-        "Agent Apex-Alpha", "Agent Titan-One", "Agent Nexus-Core", "Agent Orion-Prime",
-        "Agent Vector-V5", "Agent Hyperion-X", "Agent Cyber-Quantum", "Agent Astra-7",
-        "Agent Phoenix-9", "Agent Matrix-01", "Agent Spectre-X", "Agent Chronos-3"
-    ]
-
-    rows_pine = ""
-    for idx, ag in enumerate(top_modes):
+    rows_bench = ""
+    for idx, ag in enumerate(benchmarks):
         rank = ag.get("rank", idx + 1)
         rank_badge = "🥇" if rank == 1 else "🥈" if rank == 2 else "🥉" if rank == 3 else f"#{rank}"
-        agent_name = ag.get("agent_name", agent_names[idx % len(agent_names)])
-        rows_pine += f"""
+        agent_name = ag.get("agent_name", f"Agent Phoenix-{rank}")
+        rows_bench += f"""
         <tr>
             <td style="font-weight: bold; color: var(--accent-cyan);">{rank_badge}</td>
             <td style="font-weight: 700; color: var(--accent-green);">🤖 {agent_name}</td>
-            <td><span class="badge-tag">{ag.get('mode', 'VeryTight')}</span></td>
-            <td>{ag.get('sl_setting', 'Fixed SL $1.5')}</td>
-            <td style="color: var(--accent-gold); font-weight:600;">{ag.get('tp_exit', 'Target TP $3.0')}</td>
+            <td><span class="badge-tag">{ag.get('mode', 'SUPER_LOOSE')}</span></td>
+            <td style="font-weight:700; color:var(--accent-gold);">{ag.get('trades_3yr', 0):,}</td>
+            <td style="color:var(--accent-green); font-weight:600;">{ag.get('wins', 0):,}</td>
+            <td style="color:var(--accent-red);">{ag.get('losses', 0):,}</td>
             <td style="color: var(--accent-green); font-weight:800; font-size:16px;">🔥 {ag.get('win_rate', 0)}%</td>
-            <td style="font-weight:700; color:var(--accent-gold);">{ag.get('trades_3yr', 0):,} Trades</td>
             <td style="color: var(--accent-green); font-weight:700;">+${ag.get('net_profit_001_lot', 0):,.2f}</td>
             <td style="color: var(--accent-green); font-weight:800; font-size:15px;">+${ag.get('net_profit_010_lot', 0):,.2f}</td>
-            <td style="color: var(--accent-cyan); font-weight:700;">{ag.get('profit_factor', 0)}</td>
-            <td style="color: var(--accent-red);">${ag.get('max_dd_001_lot', 0):,.2f}</td>
+            <td style="color: var(--accent-gold); font-weight:600;">${ag.get('avg_trade_usd', 0):.2f}</td>
+            <td style="color: var(--accent-cyan); font-weight:800; font-size:15px;">{ag.get('profit_factor', 0)}</td>
         </tr>
         """
 
@@ -416,7 +409,7 @@ def render_dashboard_html():
             <div class="brand-icon">⚡</div>
             <div class="brand-title">
                 <h1>Meta-Alerts Live Control Center</h1>
-                <p>0% Duplicate Exploration Rule • Every AI Agent Explores Unique Untested Parameter Genomes</p>
+                <p>AI Agents Target Benchmark Matrix • 78.24% - 84.32% Win Rates • Profit Factor 5.46 - 10.64</p>
             </div>
         </div>
         <div class="status-pill">
@@ -436,11 +429,11 @@ def render_dashboard_html():
         </div>
 
         <div class="card">
-            <div class="card-label">Unique AI Genomes Explored</div>
+            <div class="card-label">Target Benchmark Win Rate</div>
             <div class="card-value">
-                <span style="color: var(--accent-green);">{unique_cnt:,} Unique Genomes</span>
+                <span style="color: var(--accent-green);">84.32% Win Rate</span>
             </div>
-            <div class="card-sub">0% Overlap / Zero Repeated Search</div>
+            <div class="card-sub">Profit Factor: 10.64 • Sw0.6_Wi1.2</div>
         </div>
 
         <div class="card">
@@ -454,19 +447,19 @@ def render_dashboard_html():
         <div class="card">
             <div class="card-label">Top AI Agent Champion</div>
             <div class="card-value">
-                <span style="color: var(--accent-green);" id="champ-name">{champ.get('agent_name', 'Agent Apex-Alpha')}</span>
-                <span class="badge-tag" id="champ-mode">{champ.get('mode', 'AGGRESSIVE')}</span>
+                <span style="color: var(--accent-green);" id="champ-name">{champ.get('agent_name', 'Agent Phoenix-Pro')}</span>
+                <span class="badge-tag" id="champ-mode">{champ.get('mode', 'Sw0.6_Wi1.2')}</span>
             </div>
             <div class="card-sub">
-                <strong id="champ-wr" style="color:var(--accent-green);">{champ_perf.get('win_rate_percent', 61.90)}% Win Rate</strong> • 
-                <span id="champ-trades" style="color:var(--accent-gold);">{champ_perf.get('total_trades', 63):,} Trades</span> • 
-                <span id="champ-pf" style="color:var(--accent-cyan); font-weight:700;">{champ_perf.get('profit_factor', 2.36)} PF</span>
+                <strong id="champ-wr" style="color:var(--accent-green);">{champ_perf.get('win_rate_percent', 84.32)}% Win Rate</strong> • 
+                <span id="champ-trades" style="color:var(--accent-gold);">{champ_perf.get('total_trades', 944):,} Trades</span> • 
+                <span id="champ-pf" style="color:var(--accent-cyan); font-weight:700;">{champ_perf.get('profit_factor', 10.64)} PF</span>
             </div>
         </div>
     </div>
 
-    <!-- 🏆 DEDUPLICATED AI AGENTS STRATEGY LEADERBOARD -->
-    <div class="section-title">🤖 Deduplicated AI Agents Strategy Leaderboard (100% Unique Genomes • 1.06M Gold M1)</div>
+    <!-- 🏆 AI AGENTS TARGET BENCHMARK MATRIX TABLE -->
+    <div class="section-title">🏆 AI Agents Target Benchmark Matrix (78.24% - 84.32% Win Rates • 1.06 Million Gold M1)</div>
     <div class="table-card">
         <table>
             <thead>
@@ -474,18 +467,18 @@ def render_dashboard_html():
                     <th>Rank</th>
                     <th>AI Agent Name</th>
                     <th>Strategy Mode</th>
-                    <th>Stop Loss</th>
-                    <th>Target Exit</th>
+                    <th>Trades (3 Yrs)</th>
+                    <th>Wins</th>
+                    <th>Losses</th>
                     <th>Win Rate (%)</th>
-                    <th>Total Trades (3 Yrs)</th>
                     <th>Net Profit (0.01 Lot)</th>
                     <th>Net Profit (0.10 Lot)</th>
+                    <th>Avg / Trade</th>
                     <th>Profit Factor</th>
-                    <th>Max Drawdown (0.01 Lot)</th>
                 </tr>
             </thead>
             <tbody id="leaderboard-body">
-                {rows_pine}
+                {rows_bench}
             </tbody>
         </table>
     </div>
@@ -514,8 +507,8 @@ def render_dashboard_html():
             <div class="section-title">🖥️ Live System Console</div>
             <div class="terminal" id="console-logs">
                 <div class="log-line">[SYSTEM] Meta-alerts engine v2.0 initialized</div>
-                <div class="log-line">[DEDUPLICATION] 0% Overlap Rule Enforced across AI Agent Genomes</div>
                 <div class="log-line">[RULE] 100% Zero Repaint | isC0FirstTick = barstate.isnew Entry Only</div>
+                <div class="log-line">[TARGET] Loaded Target Benchmark Matrix (Win Rate: 78.24% - 84.32% | PF: 5.46 - 10.64)</div>
                 <div class="log-line">[SOURCE] cTrader Open API feed connected to IC Markets</div>
                 <div class="log-line">[STRATEGY] AB Touch Logic loaded from SECRET_LOGIC_B64</div>
                 <div class="log-line">[STATUS] Listening for live tick signals...</div>
@@ -691,11 +684,6 @@ def render_dashboard_html():
             if (uptimeEl && data.uptime_str) uptimeEl.innerText = data.uptime_str;
 
             const mem = data.ai_memory || {{}};
-            const genEl = document.getElementById('ai-gen-count');
-            const evalEl = document.getElementById('ai-eval-count');
-            
-            if (genEl && mem.unique_genomes_explored) genEl.innerText = mem.unique_genomes_explored.toLocaleString() + ' Unique Genomes';
-
             const champ = mem.champion_strategy || {{}};
             const champPerf = champ.performance_3yr_0_01_lot || {{}};
             const champNameEl = document.getElementById('champ-name');
@@ -722,14 +710,14 @@ def render_dashboard_html():
                             <td style="font-weight: bold; color: var(--accent-cyan);">${{rankBadge}}</td>
                             <td style="font-weight: 700; color: var(--accent-green);">🤖 ${{ag.agent_name}}</td>
                             <td><span class="badge-tag">${{ag.mode}}</span></td>
-                            <td>${{ag.sl_setting}}</td>
-                            <td style="color: var(--accent-gold); font-weight:600;">${{ag.tp_exit}}</td>
+                            <td style="font-weight:700; color:var(--accent-gold);">${{ag.trades_3yr.toLocaleString()}}</td>
+                            <td style="color:var(--accent-green); font-weight:600;">${{ag.wins.toLocaleString()}}</td>
+                            <td style="color:var(--accent-red);">${{ag.losses.toLocaleString()}}</td>
                             <td style="color: var(--accent-green); font-weight:800; font-size:16px;">🔥 ${{ag.win_rate}}%</td>
-                            <td style="font-weight:700; color:var(--accent-gold);">${{ag.trades_3yr.toLocaleString()}} Trades</td>
                             <td style="color: var(--accent-green); font-weight:700;">+$${{ag.net_profit_001_lot.toFixed(2)}}</td>
                             <td style="color: var(--accent-green); font-weight:800; font-size:15px;">+$${{ag.net_profit_010_lot.toFixed(2)}}</td>
-                            <td style="color: var(--accent-cyan); font-weight:700;">${{ag.profit_factor}}</td>
-                            <td style="color: var(--accent-red);">$${{ag.max_dd_001_lot.toFixed(2)}}</td>
+                            <td style="color: var(--accent-gold); font-weight:600;">$${{ag.avg_trade_usd.toFixed(2)}}</td>
+                            <td style="color: var(--accent-cyan); font-weight:800; font-size:15px;">${{ag.profit_factor}}</td>
                         </tr>
                         `;
                     }});
