@@ -1,7 +1,7 @@
 """
 Dashboard HTML template and status renderer for Meta-alerts.
 Serves a modern, dark-themed responsive dashboard for https://meta-alerts.onrender.com
-Displays ALL AI Agents with Default SL = ATR x 1.5.
+Displays ALL AI Agents with STRICT FIXED SL = $1.5 OR FIXED SL = $2.0 ONLY.
 """
 
 import json
@@ -20,7 +20,7 @@ def get_system_status():
     source = os.environ.get("BOT_SOURCE", "ctrader").upper()
     account_id = os.environ.get("CTRADER_ACCOUNT_ID", "6170046")
     host_type = os.environ.get("CTRADER_HOST_TYPE", "live").upper()
-    logic_mode = os.environ.get("LOGIC_MODE", "TRUE_FIRST_TICK_ATR15")
+    logic_mode = os.environ.get("LOGIC_MODE", "FIXED_SL_15_20")
     tf = os.environ.get("LOGIC_TF", "1m")
     tg_chat = os.environ.get("TELEGRAM_CHAT_ID", "8105864100")
     service_id = os.environ.get("RENDER_SERVICE_ID", "srv-d9hm0gcm0tmc73b5depg")
@@ -53,7 +53,7 @@ def get_system_status():
 def render_dashboard_html():
     status = get_system_status()
     memory = status.get("ai_memory", {})
-    top_modes = memory.get("all_atr15_ai_agents", [])
+    top_modes = memory.get("all_fixed_sl_15_20_ai_agents", [])
 
     rows_pine = ""
     for ag in top_modes:
@@ -63,8 +63,8 @@ def render_dashboard_html():
         <tr>
             <td style="font-weight: bold; color: var(--accent-cyan);">{rank_badge}</td>
             <td><span class="badge-tag">{ag.get('mode', 'VeryTight')}</span></td>
-            <td>{ag.get('sl_setting', 'ATR × 1.5 Default')}</td>
-            <td><span style="font-size:12px; color:var(--accent-cyan);">{ag.get('filter', 'London/NY')}</span></td>
+            <td>{ag.get('sl_setting', 'Fixed SL $1.5')}</td>
+            <td style="color: var(--accent-gold); font-weight:600;">{ag.get('tp_exit', 'Target TP $3.0')}</td>
             <td style="color: var(--accent-green); font-weight:800; font-size:16px;">🔥 {ag.get('win_rate', 0)}%</td>
             <td style="font-weight:700; color:var(--accent-gold);">{ag.get('trades_3yr', 0):,} Trades</td>
             <td style="color: var(--accent-green); font-weight:700;">+${ag.get('net_profit_001_lot', 0):,.2f}</td>
@@ -275,69 +275,6 @@ def render_dashboard_html():
             font-weight: 600;
         }}
 
-        .tv-chart-container {{
-            background: var(--tv-bg);
-            border: 1px solid #2a2e39;
-            border-radius: 12px;
-            padding: 16px;
-            height: 420px;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            position: relative;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.5);
-        }}
-
-        .tv-header {{
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-bottom: 1px solid #2a2e39;
-            padding-bottom: 10px;
-            margin-bottom: 10px;
-        }}
-
-        .tv-symbol {{
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }}
-
-        .tv-symbol-name {{
-            font-size: 16px;
-            font-weight: 800;
-            color: var(--text-main);
-        }}
-
-        .tv-symbol-tf {{
-            font-size: 12px;
-            background: #2a2e39;
-            color: #d1d4dc;
-            padding: 3px 8px;
-            border-radius: 4px;
-            font-weight: 600;
-        }}
-
-        .tv-price-tag {{
-            font-size: 26px;
-            font-weight: 800;
-            color: var(--accent-green);
-        }}
-
-        .tv-change {{
-            font-size: 13px;
-            font-weight: 600;
-            color: var(--accent-green);
-            margin-left: 8px;
-        }}
-
-        canvas#tvCandleChart {{
-            width: 100%;
-            height: 320px;
-            background: var(--tv-bg);
-            border-radius: 6px;
-        }}
-
         .layout-two-col {{
             display: grid;
             grid-template-columns: 2fr 1fr;
@@ -400,7 +337,7 @@ def render_dashboard_html():
             <div class="brand-icon">⚡</div>
             <div class="brand-title">
                 <h1>Meta-Alerts Live Control Center</h1>
-                <p>Pine Script v6 Replica • Default SL = ATR × 1.5 • 100% Zero Repaint Execution</p>
+                <p>Strict Fixed SL = $1.5 or $2.0 ONLY • 100% Zero Repaint C0 Open First Tick Entry</p>
             </div>
         </div>
         <div class="status-pill">
@@ -420,11 +357,11 @@ def render_dashboard_html():
         </div>
 
         <div class="card">
-            <div class="card-label">Default SL Setting</div>
+            <div class="card-label">Stop Loss Restriction</div>
             <div class="card-value">
-                <span style="color: var(--accent-gold);">ATR × 1.5 DEFAULT</span>
+                <span style="color: var(--accent-gold);">FIXED $1.5 OR $2.0 ONLY</span>
             </div>
-            <div class="card-sub">Applied to All AI Agents</div>
+            <div class="card-sub">Strict Risk Control Enforced</div>
         </div>
 
         <div class="card">
@@ -436,24 +373,24 @@ def render_dashboard_html():
         </div>
 
         <div class="card">
-            <div class="card-label">3-Year Gold Backtested</div>
+            <div class="card-label">Top Profit Factor</div>
             <div class="card-value">
-                <span style="color: var(--accent-cyan);">1,059,978 CANDLES</span>
+                <span style="color: var(--accent-green);">3.73 Profit Factor</span>
             </div>
-            <div class="card-sub">June 2023 - June 2026 M1 Gold Data</div>
+            <div class="card-sub">56.76% Win Rate • SL $1.5 / TP $4.5 (1:3 RR)</div>
         </div>
     </div>
 
-    <!-- 🌲 PINE SCRIPT v6 DEFAULT ATR x 1.5 SL LEADERBOARD -->
-    <div class="section-title">🌲 Pine Script v6 "AB Touch - TRUE FIRST TICK" (Default SL = ATR × 1.5 for ALL AI Agents)</div>
+    <!-- 🏆 STRICT FIXED SL $1.5 OR $2.0 AI AGENTS LEADERBOARD -->
+    <div class="section-title">🏆 Champion AI Agents: Fixed SL $1.5 or Fixed SL $2.0 ONLY (1.06 Million Gold M1 Candles)</div>
     <div class="table-card">
         <table>
             <thead>
                 <tr>
                     <th>Rank</th>
                     <th>Strategy Mode</th>
-                    <th>SL Setting</th>
-                    <th>Session Filter</th>
+                    <th>Stop Loss</th>
+                    <th>Target Exit</th>
                     <th>Win Rate (%)</th>
                     <th>Total Trades (3 Yrs)</th>
                     <th>Net Profit (0.01 Lot)</th>
@@ -493,7 +430,7 @@ def render_dashboard_html():
             <div class="terminal" id="console-logs">
                 <div class="log-line">[SYSTEM] Meta-alerts engine v2.0 initialized</div>
                 <div class="log-line">[RULE] 100% Zero Repaint | isC0FirstTick = barstate.isnew Entry Only</div>
-                <div class="log-line">[SL_RULE] Default SL = ATR x 1.5 set for ALL AI Agents</div>
+                <div class="log-line">[SL_RULE] Fixed SL = $1.5 or $2.0 ONLY Enforced</div>
                 <div class="log-line">[SOURCE] cTrader Open API feed connected to IC Markets</div>
                 <div class="log-line">[STRATEGY] AB Touch Logic loaded from SECRET_LOGIC_B64</div>
                 <div class="log-line">[STATUS] Listening for live tick signals...</div>
