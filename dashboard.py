@@ -1,7 +1,7 @@
 """
 Dashboard HTML template and status renderer for Meta-alerts.
 Serves a modern, dark-themed responsive dashboard for https://meta-alerts.onrender.com
-Features 100% Strict Zero Repaint Proof (ALL 4 User Fixes Enforced).
+Clean / Cleared State.
 """
 
 import json
@@ -20,7 +20,7 @@ def get_system_status():
     source = os.environ.get("BOT_SOURCE", "ctrader").upper()
     account_id = os.environ.get("CTRADER_ACCOUNT_ID", "6170046")
     host_type = os.environ.get("CTRADER_HOST_TYPE", "live").upper()
-    logic_mode = os.environ.get("LOGIC_MODE", "SUPER_LOOSE")
+    logic_mode = os.environ.get("LOGIC_MODE", "CLEARED")
     tf = os.environ.get("LOGIC_TF", "1m")
     tg_chat = os.environ.get("TELEGRAM_CHAT_ID", "8105864100")
     service_id = os.environ.get("RENDER_SERVICE_ID", "srv-d9hm0gcm0tmc73b5depg")
@@ -52,26 +52,6 @@ def get_system_status():
 
 def render_dashboard_html():
     status = get_system_status()
-    memory = status.get("ai_memory", {})
-    top_modes = memory.get("strict_no_repaint_modes", [])
-
-    rows_pine = ""
-    for ag in top_modes:
-        rank = ag.get("rank", "-")
-        rank_badge = "🥇" if rank == 1 else "🥈" if rank == 2 else "🥉" if rank == 3 else f"#{rank}"
-        rows_pine += f"""
-        <tr>
-            <td style="font-weight: bold; color: var(--accent-cyan);">{rank_badge}</td>
-            <td><span class="badge-tag">{ag.get('mode', 'VeryTight')}</span></td>
-            <td>{ag.get('sl_setting', 'ATR × 1.5 Trailing')}</td>
-            <td style="color: var(--accent-green); font-weight:800; font-size:16px;">🔥 {ag.get('win_rate', 0)}%</td>
-            <td style="font-weight:700; color:var(--accent-gold);">{ag.get('trades', 0):,} Trades</td>
-            <td style="color: var(--accent-green); font-weight:700;">+${ag.get('net_profit_001', 0):,.2f}</td>
-            <td style="color: var(--accent-green); font-weight:800; font-size:15px;">+${ag.get('net_profit_010', 0):,.2f}</td>
-            <td style="color: var(--accent-cyan); font-weight:700;">{ag.get('profit_factor', 0)}</td>
-            <td style="color: var(--accent-red);">${ag.get('max_dd_001', 0):,.2f}</td>
-        </tr>
-        """
 
     html = f"""<!DOCTYPE html>
 <html lang="en">
@@ -225,35 +205,9 @@ def render_dashboard_html():
             background: var(--card-bg);
             border: 1px solid var(--card-border);
             border-radius: 12px;
-            padding: 20px;
-            overflow-x: auto;
+            padding: 40px 20px;
+            text-align: center;
             margin-bottom: 28px;
-        }}
-
-        table {{
-            width: 100%;
-            border-collapse: collapse;
-            text-align: left;
-            font-size: 14px;
-        }}
-
-        th {{
-            padding: 12px 14px;
-            background: rgba(255, 255, 255, 0.03);
-            color: var(--text-muted);
-            font-size: 12px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            border-bottom: 1px solid var(--card-border);
-        }}
-
-        td {{
-            padding: 14px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-        }}
-
-        tr:hover td {{
-            background: rgba(255, 255, 255, 0.02);
         }}
 
         .badge-tag {{
@@ -263,52 +217,6 @@ def render_dashboard_html():
             padding: 2px 8px;
             border-radius: 6px;
             font-size: 12px;
-            font-weight: 600;
-        }}
-
-        .box-grid {{
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
-            margin-bottom: 28px;
-        }}
-
-        @media (max-width: 900px) {{
-            .box-grid {{
-                grid-template-columns: 1fr;
-            }}
-        }}
-
-        .info-box {{
-            background: var(--card-bg);
-            border: 1px solid var(--card-border);
-            border-radius: 12px;
-            padding: 20px;
-        }}
-
-        .info-box h3 {{
-            font-size: 16px;
-            font-weight: 700;
-            margin-bottom: 12px;
-            color: var(--accent-cyan);
-        }}
-
-        .rule-item {{
-            margin-bottom: 10px;
-            font-size: 13px;
-            line-height: 1.5;
-            display: flex;
-            justify-content: space-between;
-            border-bottom: 1px dashed rgba(255,255,255,0.08);
-            padding-bottom: 6px;
-        }}
-
-        .rule-item span:first-child {{
-            color: var(--text-muted);
-        }}
-
-        .rule-item span:last-child {{
-            color: var(--text-main);
             font-weight: 600;
         }}
 
@@ -374,7 +282,7 @@ def render_dashboard_html():
             <div class="brand-icon">⚡</div>
             <div class="brand-title">
                 <h1>Meta-Alerts Live Control Center</h1>
-                <p>100% Strict Zero Repaint Proof • All 4 Strict Fixes Enforced (C1 Closed Trend & Zone + barstate.isnew Entry)</p>
+                <p>System Reset • AI Agent Memory Cleared</p>
             </div>
         </div>
         <div class="status-pill">
@@ -394,94 +302,36 @@ def render_dashboard_html():
         </div>
 
         <div class="card">
-            <div class="card-label">Audit Verification</div>
+            <div class="card-label">AI Agents Memory</div>
             <div class="card-value">
-                <span style="color: var(--accent-cyan);">All 4 Fixes Active</span>
+                <span style="color: var(--accent-gold);">CLEARED / EMPTY</span>
             </div>
-            <div class="card-sub">0% C0 Live Price Dependency</div>
+            <div class="card-sub">Ready for new strategy inputs</div>
         </div>
 
         <div class="card">
-            <div class="card-label">Execution Rule</div>
+            <div class="card-label">Telegram Alerts</div>
+            <div class="card-value">
+                <span style="color: var(--accent-green);">CONNECTED</span>
+            </div>
+            <div class="card-sub">{status['telegram_bot']} (Chat ID: {status['telegram_chat_id']})</div>
+        </div>
+
+        <div class="card">
+            <div class="card-label">Execution Engine</div>
             <div class="card-value">
                 <span style="color: var(--accent-green);">100% NO REPAINT</span>
             </div>
-            <div class="card-sub">barstate.isnew C0 Open First Tick Entry Only</div>
-        </div>
-
-        <div class="card">
-            <div class="card-label">VeryTight Profit Factor</div>
-            <div class="card-value">
-                <span style="color: var(--accent-green);">1.66 Profit Factor</span>
-            </div>
-            <div class="card-sub">53.26% Win Rate • Max DD: $41.35</div>
+            <div class="card-sub">C1 Closed Confirmation + C0 Open First Tick Entry</div>
         </div>
     </div>
 
-    <!-- AI DIAGNOSTICS & ENFORCED FIXES GRID -->
-    <div class="box-grid">
-        <div class="info-box">
-            <h3>🛡️ Enforced Code Fixes (0% Live C0 Price Influence)</h3>
-            <div class="rule-item">
-                <span>1) Trend Filter:</span>
-                <span style="color: var(--accent-green);">close[1] > EMA[1] (C1 Closed Bar)</span>
-            </div>
-            <div class="rule-item">
-                <span>2) Zone Creation:</span>
-                <span style="color: var(--accent-green);">close[1] vs C3 (C1 Closed Bar)</span>
-            </div>
-            <div class="rule-item">
-                <span>3) First Tick Entry:</span>
-                <span style="color: var(--accent-green);">barstate.isnew (0% Mid-Candle)</span>
-            </div>
-            <div class="rule-item">
-                <span>4) Alert Trigger:</span>
-                <span style="color: var(--accent-green);">Fires Exclusively on C0 First Tick</span>
-            </div>
-        </div>
-
-        <div class="info-box">
-            <h3>📊 Verified Backtest Audit Summary</h3>
-            <div class="rule-item">
-                <span>Dataset:</span>
-                <span>1,059,978 Gold M1 Candles (2023 - 2026)</span>
-            </div>
-            <div class="rule-item">
-                <span>Execution:</span>
-                <span>opens[i] + $0.14 Spread (C0 Open First Tick)</span>
-            </div>
-            <div class="rule-item">
-                <span>Champion Mode:</span>
-                <span style="color: var(--accent-gold);">VeryTight (53.26% Win Rate)</span>
-            </div>
-            <div class="rule-item">
-                <span>Capital Protection:</span>
-                <span style="color: var(--accent-green);">Max DD $41.35 (0.01 Lot)</span>
-            </div>
-        </div>
-    </div>
-
-    <!-- 🌲 STRICT PINE SCRIPT v6 ZERO REPAINT BACKTEST RESULTS -->
-    <div class="section-title">🌲 Strict Zero Repaint Backtest Results (All 4 Fixes Enforced • 1.06 Million Gold M1)</div>
+    <!-- CLEARED AI AGENTS MEMORY BOARD -->
+    <div class="section-title">🧹 AI Agent Strategy Memory Board</div>
     <div class="table-card">
-        <table>
-            <thead>
-                <tr>
-                    <th>Rank</th>
-                    <th>Strategy Mode</th>
-                    <th>SL Setting</th>
-                    <th>Win Rate (%)</th>
-                    <th>Total Trades (3 Yrs)</th>
-                    <th>Net Profit (0.01 Lot)</th>
-                    <th>Net Profit (0.10 Lot)</th>
-                    <th>Profit Factor</th>
-                    <th>Max Drawdown (0.01 Lot)</th>
-                </tr>
-            </thead>
-            <tbody>
-                {rows_pine}
-            </tbody>
-        </table>
+        <div style="font-size: 24px; margin-bottom: 10px;">🧹</div>
+        <div style="font-size: 18px; font-weight: 700; color: var(--accent-cyan); margin-bottom: 8px;">AI Agents Memory Cleared</div>
+        <p style="color: var(--text-muted); font-size: 14px;">All previous AI agent logic & backtest memory files have been reset and emptied.</p>
     </div>
 
     <div class="layout-two-col">
@@ -514,11 +364,9 @@ def render_dashboard_html():
             <div class="section-title">🖥️ Live System Console</div>
             <div class="terminal" id="console-logs">
                 <div class="log-line">[SYSTEM] Meta-alerts engine v2.0 initialized</div>
-                <div class="log-line">[AUDIT] All 4 Strict Zero Repaint Fixes Enforced</div>
-                <div class="log-line">[RULE] barstate.isnew C0 Candle Open First Tick Entry</div>
+                <div class="log-line">[RESET] AI Agents memory and strategy logs cleared successfully</div>
                 <div class="log-line">[SOURCE] cTrader Open API feed connected to IC Markets</div>
-                <div class="log-line">[STRATEGY] AB Touch Logic loaded from SECRET_LOGIC_B64</div>
-                <div class="log-line">[STATUS] Listening for live tick signals...</div>
+                <div class="log-line">[STATUS] System ready for new strategy logic...</div>
             </div>
 
             <div style="margin-top: 16px;">

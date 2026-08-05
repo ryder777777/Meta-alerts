@@ -1,69 +1,8 @@
 {
-  "last_updated": "2026-08-05 16:02:00 UTC",
-  "audit_type": "STRICT 100% ZERO REPAINT PROOF (ALL 4 USER FIXES ENFORCED)",
-  "fixes_enforced": [
-    "Fix 1: Trend Filter close[1] > EMA[1] (0% C0 live price influence)",
-    "Fix 2: Zone Detection close[1] vs C3 (0% C0 live price influence)",
-    "Fix 3: Entry restricted to barstate.isnew (C0 Candle Open First Tick Only)",
-    "Fix 4: Alerts fire exclusively on C0 Candle Open First Tick"
-  ],
-  "total_candles_processed": 1059978,
-  "champion_strategy": {
-    "mode": "VeryTight",
-    "sl_setting": "ATR × 1.5 Trailing",
-    "performance_3yr_0_01_lot": {
-      "position_size": "0.01 Lot ($1.0 per $1 Gold move)",
-      "total_trades": 92,
-      "win_rate_percent": 53.26,
-      "net_profit_usd": 137.37,
-      "profit_factor": 1.66,
-      "max_drawdown_usd": 41.35
-    }
-  },
-  "strict_no_repaint_modes": [
-    {
-      "rank": 1,
-      "mode": "VeryTight",
-      "sl_setting": "ATR × 1.5 Trailing",
-      "win_rate": 53.26,
-      "trades": 92,
-      "net_profit_001": 137.37,
-      "net_profit_010": 1373.70,
-      "profit_factor": 1.66,
-      "max_dd_001": 41.35
-    },
-    {
-      "rank": 2,
-      "mode": "Sw0.4_Wi0.8",
-      "sl_setting": "ATR × 1.5 Trailing",
-      "win_rate": 51.35,
-      "trades": 74,
-      "net_profit_001": 113.23,
-      "net_profit_010": 1132.30,
-      "profit_factor": 1.66,
-      "max_dd_001": 45.99
-    },
-    {
-      "rank": 3,
-      "mode": "SUPER_LOOSE",
-      "sl_setting": "ATR × 1.5 Trailing",
-      "win_rate": 46.05,
-      "trades": 367,
-      "net_profit_001": 31.03,
-      "net_profit_010": 310.32,
-      "profit_factor": 1.05,
-      "max_dd_001": 74.85
-    },
-    {
-      "rank": 4,
-      "mode": "SUPER_LOOSE_2",
-      "sl_setting": "ATR × 1.5 Trailing",
-      "win_rate": 44.41,
-      "trades": 313,
-      "net_profit_001": 37.72,
-      "net_profit_010": 377.15,
-      "profit_factor": 1.07,
-      "max_dd_001": 52.46
-    }
-  ]
+  "last_updated": "2026-08-05 16:05:00 UTC",
+  "status": "cleared",
+  "total_ai_agents": 0,
+  "ai_agents": [],
+  "champion_strategy": {},
+  "top_pine_v6_modes": []
 }

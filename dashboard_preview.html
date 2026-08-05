@@ -150,35 +150,9 @@
             background: var(--card-bg);
             border: 1px solid var(--card-border);
             border-radius: 12px;
-            padding: 20px;
-            overflow-x: auto;
+            padding: 40px 20px;
+            text-align: center;
             margin-bottom: 28px;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            text-align: left;
-            font-size: 14px;
-        }
-
-        th {
-            padding: 12px 14px;
-            background: rgba(255, 255, 255, 0.03);
-            color: var(--text-muted);
-            font-size: 12px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            border-bottom: 1px solid var(--card-border);
-        }
-
-        td {
-            padding: 14px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-        }
-
-        tr:hover td {
-            background: rgba(255, 255, 255, 0.02);
         }
 
         .badge-tag {
@@ -188,52 +162,6 @@
             padding: 2px 8px;
             border-radius: 6px;
             font-size: 12px;
-            font-weight: 600;
-        }
-
-        .box-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
-            margin-bottom: 28px;
-        }
-
-        @media (max-width: 900px) {
-            .box-grid {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        .info-box {
-            background: var(--card-bg);
-            border: 1px solid var(--card-border);
-            border-radius: 12px;
-            padding: 20px;
-        }
-
-        .info-box h3 {
-            font-size: 16px;
-            font-weight: 700;
-            margin-bottom: 12px;
-            color: var(--accent-cyan);
-        }
-
-        .rule-item {
-            margin-bottom: 10px;
-            font-size: 13px;
-            line-height: 1.5;
-            display: flex;
-            justify-content: space-between;
-            border-bottom: 1px dashed rgba(255,255,255,0.08);
-            padding-bottom: 6px;
-        }
-
-        .rule-item span:first-child {
-            color: var(--text-muted);
-        }
-
-        .rule-item span:last-child {
-            color: var(--text-main);
             font-weight: 600;
         }
 
@@ -299,7 +227,7 @@
             <div class="brand-icon">⚡</div>
             <div class="brand-title">
                 <h1>Meta-Alerts Live Control Center</h1>
-                <p>100% Strict Zero Repaint Proof • All 4 Strict Fixes Enforced (C1 Closed Trend & Zone + barstate.isnew Entry)</p>
+                <p>System Reset • AI Agent Memory Cleared</p>
             </div>
         </div>
         <div class="status-pill">
@@ -319,137 +247,36 @@
         </div>
 
         <div class="card">
-            <div class="card-label">Audit Verification</div>
+            <div class="card-label">AI Agents Memory</div>
             <div class="card-value">
-                <span style="color: var(--accent-cyan);">All 4 Fixes Active</span>
+                <span style="color: var(--accent-gold);">CLEARED / EMPTY</span>
             </div>
-            <div class="card-sub">0% C0 Live Price Dependency</div>
+            <div class="card-sub">Ready for new strategy inputs</div>
         </div>
 
         <div class="card">
-            <div class="card-label">Execution Rule</div>
+            <div class="card-label">Telegram Alerts</div>
+            <div class="card-value">
+                <span style="color: var(--accent-green);">CONNECTED</span>
+            </div>
+            <div class="card-sub">@mera_live_alert_xyz_bot (Chat ID: 8105864100)</div>
+        </div>
+
+        <div class="card">
+            <div class="card-label">Execution Engine</div>
             <div class="card-value">
                 <span style="color: var(--accent-green);">100% NO REPAINT</span>
             </div>
-            <div class="card-sub">barstate.isnew C0 Open First Tick Entry Only</div>
-        </div>
-
-        <div class="card">
-            <div class="card-label">VeryTight Profit Factor</div>
-            <div class="card-value">
-                <span style="color: var(--accent-green);">1.66 Profit Factor</span>
-            </div>
-            <div class="card-sub">53.26% Win Rate • Max DD: $41.35</div>
+            <div class="card-sub">C1 Closed Confirmation + C0 Open First Tick Entry</div>
         </div>
     </div>
 
-    <!-- AI DIAGNOSTICS & ENFORCED FIXES GRID -->
-    <div class="box-grid">
-        <div class="info-box">
-            <h3>🛡️ Enforced Code Fixes (0% Live C0 Price Influence)</h3>
-            <div class="rule-item">
-                <span>1) Trend Filter:</span>
-                <span style="color: var(--accent-green);">close[1] > EMA[1] (C1 Closed Bar)</span>
-            </div>
-            <div class="rule-item">
-                <span>2) Zone Creation:</span>
-                <span style="color: var(--accent-green);">close[1] vs C3 (C1 Closed Bar)</span>
-            </div>
-            <div class="rule-item">
-                <span>3) First Tick Entry:</span>
-                <span style="color: var(--accent-green);">barstate.isnew (0% Mid-Candle)</span>
-            </div>
-            <div class="rule-item">
-                <span>4) Alert Trigger:</span>
-                <span style="color: var(--accent-green);">Fires Exclusively on C0 First Tick</span>
-            </div>
-        </div>
-
-        <div class="info-box">
-            <h3>📊 Verified Backtest Audit Summary</h3>
-            <div class="rule-item">
-                <span>Dataset:</span>
-                <span>1,059,978 Gold M1 Candles (2023 - 2026)</span>
-            </div>
-            <div class="rule-item">
-                <span>Execution:</span>
-                <span>opens[i] + $0.14 Spread (C0 Open First Tick)</span>
-            </div>
-            <div class="rule-item">
-                <span>Champion Mode:</span>
-                <span style="color: var(--accent-gold);">VeryTight (53.26% Win Rate)</span>
-            </div>
-            <div class="rule-item">
-                <span>Capital Protection:</span>
-                <span style="color: var(--accent-green);">Max DD $41.35 (0.01 Lot)</span>
-            </div>
-        </div>
-    </div>
-
-    <!-- 🌲 STRICT PINE SCRIPT v6 ZERO REPAINT BACKTEST RESULTS -->
-    <div class="section-title">🌲 Strict Zero Repaint Backtest Results (All 4 Fixes Enforced • 1.06 Million Gold M1)</div>
+    <!-- CLEARED AI AGENTS MEMORY BOARD -->
+    <div class="section-title">🧹 AI Agent Strategy Memory Board</div>
     <div class="table-card">
-        <table>
-            <thead>
-                <tr>
-                    <th>Rank</th>
-                    <th>Strategy Mode</th>
-                    <th>SL Setting</th>
-                    <th>Win Rate (%)</th>
-                    <th>Total Trades (3 Yrs)</th>
-                    <th>Net Profit (0.01 Lot)</th>
-                    <th>Net Profit (0.10 Lot)</th>
-                    <th>Profit Factor</th>
-                    <th>Max Drawdown (0.01 Lot)</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td style="font-weight: bold; color: var(--accent-cyan);">🥇</td>
-                    <td><span class="badge-tag">VeryTight</span></td>
-                    <td>ATR × 1.5 Trailing</td>
-                    <td style="color: var(--accent-green); font-weight:800; font-size:16px;">🔥 53.26%</td>
-                    <td style="font-weight:700; color:var(--accent-gold);">92 Trades</td>
-                    <td style="color: var(--accent-green); font-weight:700;">+$137.37</td>
-                    <td style="color: var(--accent-green); font-weight:800;">+$1,373.70</td>
-                    <td style="color: var(--accent-cyan); font-weight:700;">1.66</td>
-                    <td style="color: var(--accent-red);">$41.35</td>
-                </tr>
-                <tr>
-                    <td style="font-weight: bold; color: var(--accent-cyan);">🥈</td>
-                    <td><span class="badge-tag">Sw0.4_Wi0.8</span></td>
-                    <td>ATR × 1.5 Trailing</td>
-                    <td style="color: var(--accent-green); font-weight:800; font-size:16px;">🔥 51.35%</td>
-                    <td style="font-weight:700; color:var(--accent-gold);">74 Trades</td>
-                    <td style="color: var(--accent-green); font-weight:700;">+$113.23</td>
-                    <td style="color: var(--accent-green); font-weight:800;">+$1,132.30</td>
-                    <td style="color: var(--accent-cyan); font-weight:700;">1.66</td>
-                    <td style="color: var(--accent-red);">$45.99</td>
-                </tr>
-                <tr>
-                    <td style="font-weight: bold; color: var(--accent-cyan);">🥉</td>
-                    <td><span class="badge-tag">SUPER_LOOSE</span></td>
-                    <td>ATR × 1.5 Trailing</td>
-                    <td style="color: var(--accent-green); font-weight:800; font-size:16px;">🔥 46.05%</td>
-                    <td style="font-weight:700; color:var(--accent-gold);">367 Trades</td>
-                    <td style="color: var(--accent-green); font-weight:700;">+$31.03</td>
-                    <td style="color: var(--accent-green); font-weight:800;">+$310.32</td>
-                    <td style="color: var(--accent-cyan); font-weight:700;">1.05</td>
-                    <td style="color: var(--accent-red);">$74.85</td>
-                </tr>
-                <tr>
-                    <td style="font-weight: bold; color: var(--accent-cyan);">#4</td>
-                    <td><span class="badge-tag">SUPER_LOOSE_2</span></td>
-                    <td>ATR × 1.5 Trailing</td>
-                    <td style="color: var(--accent-green); font-weight:800; font-size:16px;">🔥 44.41%</td>
-                    <td style="font-weight:700; color:var(--accent-gold);">313 Trades</td>
-                    <td style="color: var(--accent-green); font-weight:700;">+$37.72</td>
-                    <td style="color: var(--accent-green); font-weight:800;">+$377.15</td>
-                    <td style="color: var(--accent-cyan); font-weight:700;">1.07</td>
-                    <td style="color: var(--accent-red);">$52.46</td>
-                </tr>
-            </tbody>
-        </table>
+        <div style="font-size: 24px; margin-bottom: 10px;">🧹</div>
+        <div style="font-size: 18px; font-weight: 700; color: var(--accent-cyan); margin-bottom: 8px;">AI Agents Memory Cleared</div>
+        <p style="color: var(--text-muted); font-size: 14px;">All previous AI agent logic & backtest memory files have been reset and emptied.</p>
     </div>
 
     <div class="layout-two-col">
@@ -460,7 +287,7 @@
                   <div id="tradingview_chart" style="height:100%;width:100%"></div>
                   <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
                   <script type="text/javascript">
-                  new TradingView.widget({{
+                  new TradingView.widget({
                     "autosize": true,
                     "symbol": "OANDA:XAUUSD",
                     "interval": "1",
@@ -472,7 +299,7 @@
                     "enable_publishing": false,
                     "allow_symbol_change": false,
                     "container_id": "tradingview_chart"
-                  }});
+                  });
                   </script>
                 </div>
             </div>
@@ -480,18 +307,14 @@
 
         <div>
             <div class="section-title">🖥️ Live System Console</div>
-            <div class="terminal" id="console-logs">
+            <div class="terminal">
                 <div class="log-line">[SYSTEM] Meta-alerts engine v2.0 initialized</div>
-                <div class="log-line">[AUDIT] All 4 Strict Zero Repaint Fixes Enforced</div>
-                <div class="log-line">[RULE] barstate.isnew C0 Candle Open First Tick Entry</div>
+                <div class="log-line">[RESET] AI Agents memory and strategy logs cleared successfully</div>
                 <div class="log-line">[SOURCE] cTrader Open API feed connected to IC Markets</div>
-                <div class="log-line">[STRATEGY] AB Touch Logic loaded from SECRET_LOGIC_B64</div>
-                <div class="log-line">[STATUS] Listening for live tick signals...</div>
+                <div class="log-line">[STATUS] System ready for new strategy logic...</div>
             </div>
 
-            <div style="margin-top: 16px;">
-                <a href="/ctrader" class="btn btn-outline" target="_blank">🔐 Re-authorize cTrader OAuth</a>
-            </div>
+            <a href="https://meta-alerts.onrender.com/ctrader" class="btn btn-outline" target="_blank">🔐 Re-authorize cTrader OAuth</a>
         </div>
     </div>
 </div>
