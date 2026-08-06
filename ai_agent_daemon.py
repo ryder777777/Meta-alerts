@@ -433,12 +433,16 @@ def evaluate_agent(pnls):
     pf_ratio = max(pf, 0.5)                       # PF 1.0+ = good
     quality_score = (wr_ratio ** 2.0) * (pf_ratio ** 1.8)
 
-    # Volume: HALKAA credit (zyada trades acha, par quality dominant).
-    # Over-reward nahi taaki loose low-PF configs dominate na karein.
-    if n_trades < 200:
-        volume_score = 0.6 + 0.4 * (n_trades / 200.0)
-    else:
+    # Volume: TRADES band reward — target ~1000-3000 trades (user requirement).
+    # <300 = weak, 500-4000 = full credit (sweet spot ~1000-3000).
+    # Quality (WR*PF) alag se hota hai, isliye dono milke zyada trades + achi
+    # quality dono optimize karte hain.
+    if n_trades < 300:
+        volume_score = 0.3 + 0.4 * (n_trades / 300.0)
+    elif n_trades <= 4500:
         volume_score = 1.0
+    else:
+        volume_score = max(0.7, 1.0 - (n_trades - 4500) / 5000.0)
 
     # Robustness: max drawdown penalty (safe agents aage)
     dd_penalty = 1.0 / (1.0 + max_dd / 300.0)
@@ -643,9 +647,9 @@ def run_continuous_ai_evolution_loop():
     sl_mode_options = [0, 1]   # 0=custom $, 1=ATR(4)*1.0
     # LOOSER params (benchmark SUPER_LOOSE jaisi) -> zyada signals/trades.
     # Benchmark champion modes: sw=0.3, wk=0.5, dp=3.0 -> 6000+ trades.
-    psw_options = [0.1, 0.15, 0.2, 0.3, 0.4, 0.5, 0.6]
-    pwk_options = [0.2, 0.3, 0.4, 0.5, 0.6, 0.8, 1.0]
-    pdp_options = [2.0, 2.5, 3.0, 4.0, 5.0]
+    psw_options = [0.05, 0.1, 0.15, 0.2, 0.3, 0.4, 0.5]
+    pwk_options = [0.15, 0.2, 0.3, 0.4, 0.5, 0.6]
+    pdp_options = [1.5, 2.0, 2.5, 3.0, 4.0]
     ptr_options = [0, 100, 200]
     sess_options = [False, True]
 
@@ -685,7 +689,7 @@ def run_continuous_ai_evolution_loop():
             tp = random.choice(tp_options); psw = random.choice(psw_options)
             pwk = random.choice(pwk_options); pdp = random.choice(pdp_options)
             ptr = random.choice(ptr_options); sess = random.choice(sess_options)
-            enabled = _random_enabled(); ind_conf = random.choice([0, 1, 2, 3, 4, 5, 6])
+            enabled = _random_enabled(); ind_conf = random.choice([0, 1, 2, 3])
             sl_mode = random.choice(sl_mode_options)
             tp_ratio = random.choice(tp_ratio_options)
 
@@ -719,7 +723,7 @@ def run_continuous_ai_evolution_loop():
                     if random.random() < 0.1: sess = random.choice(sess_options)
                     if random.random() < 0.05: m = random.choice(modes)
                     if random.random() < 0.3: enabled = _random_enabled()
-                    if random.random() < 0.3: ind_conf = random.choice([0, 1, 2, 3, 4, 5, 6])
+                    if random.random() < 0.3: ind_conf = random.choice([0, 1, 2, 3])
             elif r < 0.75 and best_list:
                 # MUTATION: 1 tournament parent se thoda badlo (fine-tune)
                 p = _tournament()
@@ -740,7 +744,7 @@ def run_continuous_ai_evolution_loop():
                 if random.random() < 0.15: sess = random.choice(sess_options)
                 if random.random() < 0.08: m = random.choice(modes)
                 if random.random() < 0.3: enabled = _random_enabled()
-                if random.random() < 0.3: ind_conf = random.choice([0, 1, 2, 3, 4, 5, 6])
+                if random.random() < 0.3: ind_conf = random.choice([0, 1, 2, 3])
             else:
                 # FRESH random exploration (30%) — diversity
                 pass
