@@ -432,10 +432,13 @@ def evaluate_agent(pnls):
     # volume independent (trade count RR pe depend karta hai, usse bias mat karo)
     quality_score = (wr_proximity ** 3.0) * (1.0 + 0.6 * pf)
 
-    # Volume: NEUTRAL (sirf bahut kam trades penalty, warna 1.0) — isse 1:1 RR
-    # ka bias nahi banta, high-WR/high-RR dono explore hote hain.
+    # Volume: TRADES reward — zyada trades ko credit. 2000+ trades = full credit,
+    # 500 ~ good, <200 weak. Winrate bonus alag se hota hai, isliye dono milke
+    # trades + winrate dono optimize karte hain.
     if n_trades < 200:
-        volume_score = 0.5 + 0.5 * (n_trades / 200.0)
+        volume_score = 0.3 + 0.4 * (n_trades / 200.0)
+    elif n_trades < 2000:
+        volume_score = 0.7 + 0.3 * (n_trades / 2000.0)
     else:
         volume_score = 1.0
 
