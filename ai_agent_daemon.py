@@ -261,12 +261,21 @@ def evaluate_agent(pnls):
     # Agents jo target benchmark (84.32% WR / PF 10.64) ko hit/beat karte hain
     # unhe boost — AI target achieve/beat karne ki taraf optimize hota hai.
     target_score = _target_score(win_rate, pf)
+
+    # ---- TRADE VOLUME BONUS ----
+    # Benchmark ke modes (SUPER_LOOSE=6384, AGGRESSIVE=2003 trades) jitne zyada
+    # trades wale agents ko reward do — taaki har mode me zyada trades bane.
+    # log-scaling taaki sirf few-trade agents pe unrealistic boost na ho.
+    trade_bonus = 1.0 + 0.5 * (n_trades / 500.0) ** 0.7
+
     fitness = net_profit * (pf ** 1.5) * (win_rate / 20.0) / (max_dd + 1.0)
     fitness *= (1.0 + 0.5 * target_score)
+    fitness *= trade_bonus
 
     return {
         "fitness": round(fitness, 4),
         "target_score": round(target_score, 4),
+        "trade_bonus": round(trade_bonus, 4),
         "trades": int(n_trades),
         "win_rate": round(win_rate, 2),
         "net_profit": round(net_profit, 2),
@@ -380,9 +389,11 @@ def run_continuous_ai_evolution_loop():
 
     sl_options = [1.5, 2.0] # Fixed SL $1.5 or $2.0
     tp_options = [3.0, 4.0, 4.5, 6.0]
-    psw_options = [0.1, 0.2, 0.3, 0.4, 0.6]
-    pwk_options = [0.3, 0.5, 0.8, 1.0, 1.2]
-    pdp_options = [2.0, 3.0, 4.0, 5.0, 6.0]
+    # LOOSER params (benchmark SUPER_LOOSE jaisi) -> zyada signals/trades.
+    # Benchmark champion modes: sw=0.3, wk=0.5, dp=3.0 -> 6000+ trades.
+    psw_options = [0.05, 0.1, 0.15, 0.2, 0.3, 0.4, 0.6]
+    pwk_options = [0.15, 0.2, 0.3, 0.4, 0.5, 0.8, 1.0]
+    pdp_options = [1.0, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0]
     ptr_options = [0, 100, 200]
     sess_options = [False, True]
 
@@ -401,9 +412,10 @@ def run_continuous_ai_evolution_loop():
         t0 = time.time()
 
         # Best agents = future generations ke parents (self-improvement)
+        # trades ko aage priority — zyada trades wale agents evolve hokar parents banen
         best_list = sorted(GLOBAL_AI_MEMORY.values(),
-                           key=lambda x: (x.get("target_score", 0.0), x["win_rate"],
-                                          x["trades"], x["profit_factor"]), reverse=True)[:max(10, agents_per_gen // 3)]
+                           key=lambda x: (x.get("target_score", 0.0), x["trades"],
+                                          x["win_rate"], x["profit_factor"]), reverse=True)[:max(10, agents_per_gen // 3)]
 
         # Batch generate N UNIQUE AI Agent Genomes (dedup guarantee)
         batch_tasks = []
@@ -470,10 +482,10 @@ def run_continuous_ai_evolution_loop():
                 if key not in GLOBAL_AI_MEMORY or eval_res["fitness"] > GLOBAL_AI_MEMORY[key]["fitness"]:
                     GLOBAL_AI_MEMORY[key] = {**agent, **eval_res}
 
-        # Rank target-beating agents first (benchmark achieve/beat ka goal)
+        # Rank: target-beating pehle, phir zyada trades wale aage
         sorted_memory = sorted(list(GLOBAL_AI_MEMORY.values()),
                                key=lambda x: (x.get("target_score", 0.0),
-                                              x["win_rate"], x["trades"],
+                                              x["trades"], x["win_rate"],
                                               x["profit_factor"]), reverse=True)
 
         # Prepare Top N for Dashboard JSON (configurable, default 50)
