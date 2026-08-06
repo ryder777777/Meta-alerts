@@ -427,31 +427,29 @@ def evaluate_agent(pnls):
     #
     # Quality: win_rate ko sabse zyada weight (ye improve hona chahiye),
     # PF secondary. WR target ke paas => strong reward.
-    wr_proximity = max(0.0, win_rate / max(TARGET_WR, 1.0))   # 0..1+ (1.0 = target WR)
-    # WR dominant (cube) + PF bonus. Dono optimize — high-WR aur high-PF aage.
-    # volume independent (trade count RR pe depend karta hai, usse bias mat karo)
-    quality_score = (wr_proximity ** 3.0) * (1.0 + 0.6 * pf)
+    # WINRATE + PF DONO COMBINED (multiplicative) — ek upar, dusra nahi gira.
+    # Agents ko reward tabhi jab DONO aache ho: win_rate 50%+ ke paas AUR PF 1.3+.
+    wr_ratio = win_rate / 50.0                    # 50% = 1.0, 55% = 1.1
+    pf_ratio = max(pf, 0.5)                       # PF 1.0+ = good
+    quality_score = (wr_ratio ** 2.0) * (pf_ratio ** 1.8)
 
-    # Volume: TRADES reward — zyada trades ko credit. 2000+ trades = full credit,
-    # 500 ~ good, <200 weak. Winrate bonus alag se hota hai, isliye dono milke
-    # trades + winrate dono optimize karte hain.
+    # Volume: HALKAA credit (zyada trades acha, par quality dominant).
+    # Over-reward nahi taaki loose low-PF configs dominate na karein.
     if n_trades < 200:
-        volume_score = 0.3 + 0.4 * (n_trades / 200.0)
-    elif n_trades < 2000:
-        volume_score = 0.7 + 0.3 * (n_trades / 2000.0)
+        volume_score = 0.6 + 0.4 * (n_trades / 200.0)
     else:
         volume_score = 1.0
 
     # Robustness: max drawdown penalty (safe agents aage)
     dd_penalty = 1.0 / (1.0 + max_dd / 300.0)
 
-    # STRONG 50%+ winrate bonus — agents ko 50% ke upar push karta hai
+    # 50%+ winrate bonus — target nudge (moderate)
     if win_rate >= 55.0:
-        wr50_bonus = 3.0
+        wr50_bonus = 1.8
     elif win_rate >= 50.0:
-        wr50_bonus = 2.0
+        wr50_bonus = 1.4
     else:
-        wr50_bonus = 0.3 + win_rate / 100.0
+        wr50_bonus = 0.4 + win_rate / 100.0
 
     fitness = net_profit * quality_score * volume_score * dd_penalty * wr50_bonus
 
