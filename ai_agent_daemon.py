@@ -38,7 +38,7 @@ def data_status():
         "dir": [d for d in DATA_SEARCH_DIRS if glob.glob(os.path.join(d, "*.csv"))],
         "total_bytes": total_bytes,
         "candles_loaded": len(CLOSES) if CLOSES is not None else 0,
-        "dataset_loaded": DATASET is not None,
+        "dataset_loaded": _DATASET_LOADED,
         "upload_dir": UPLOAD_DIR,
         "hint": "Data upload karne ke liye GET /api/upload-form kholo (ya PUT raw CSV). "
                 "Redeploy pe ephemeral disk wipe hoti hai — data dobara upload karna padega."
@@ -61,11 +61,12 @@ DEFAULT_TOP_N = int(os.environ.get("AI_TOP_N", "30"))
 
 # Load Dataset in memory
 DATASET = None
+_DATASET_LOADED = False
 OPENS = HIGHS = LOWS = CLOSES = HOURS = VOLUMES = None
 
 def load_dataset():
-    global DATASET, OPENS, HIGHS, LOWS, CLOSES, HOURS, VOLUMES
-    if DATASET is not None:
+    global DATASET, OPENS, HIGHS, LOWS, CLOSES, HOURS, VOLUMES, _DATASET_LOADED
+    if _DATASET_LOADED:
         return
 
     # Data ko kai jagah dhundho (DATA_DIR env > /home/user/uploads > ./data > ./uploads)
@@ -108,6 +109,7 @@ def load_dataset():
         VOLUMES = np.maximum(DATASET["VOL"].fillna(1.0).values.astype(np.float64), 1.0)
     else:
         VOLUMES = np.ones(len(CLOSES), dtype=np.float64)
+    _DATASET_LOADED = True
     
     print(f"✅ Dataset Loaded: {len(CLOSES):,} M1 Candles (2023 - 2026)")
 
@@ -135,72 +137,90 @@ def _b(v):
 
 
 def compute_indicator_votes():
-    """Return VOTES: 2D float array [n, N_SOURCES], each col a vote source."""
+    """Return VOTES: 2D int8 array [n, N_SOURCES], each col a vote source.
+    Computed ONE indicator at a time + freed, to stay inside free-tier RAM."""
     global VOTES
     n = len(CLOSES)
     if n <= 0:
         return
     O, H, L, C, V = OPENS, HIGHS, LOWS, CLOSES, VOLUMES
+    VOTES = np.zeros((n, N_SOURCES), dtype=np.int8)
 
-    rsi14 = IL.rsi(C, 14)
-    stoch14 = IL.stochastic(H, L, C, 14, 3)
-    wpr14 = IL.williams_r(H, L, C, 14)
-    mfi14 = IL.mfi(H, L, C, V, 14)
-    cmf20 = IL.cmf(H, L, C, V, 20)
-    force13 = IL.force_index(C, V, 13)
+    def _col(v, i, base=0.0):
+        col = np.zeros(n, dtype=np.int8)
+        for j in range(n):
+            x = v[j]
+            if np.isnan(x):
+                col[j] = 0
+            else:
+                y = x - base
+                col[j] = 1 if y > 0 else (-1 if y < 0 else 0)
+        VOTES[:, i] = col
+
+    # 0 RSI
+    _col(IL.rsi(C, 14), 0, 50.0)
+    # 1 Stoch
+    _col(IL.stochastic(H, L, C, 14, 3), 1, 50.0)
+    # 2 W%R
+    _col(IL.williams_r(H, L, C, 14), 2, -50.0)
+    # 3 MFI
+    _col(IL.mfi(H, L, C, V, 14), 3, 50.0)
+    # 4 CMF
+    _col(IL.cmf(H, L, C, V, 20), 4, 0.0)
+    # 5 Force
+    _col(IL.force_index(C, V, 13), 5, 0.0)
+    # 6 Elder Bull
     ema13 = IL.ema_series(C, 13)
-    bull13 = IL.elder_bull_power(H, ema13, 13)
-    bear13 = IL.elder_bear_power(L, ema13, 13)
+    _col(IL.elder_bull_power(H, ema13, 13), 6, 0.0)
+    # 7 Elder Bear
+    _col(IL.elder_bear_power(L, ema13, 13), 7, 0.0)
+    del ema13
+    # 8 OBV slope (10-bar)
     obv_arr = IL.obv(C, V)
+    for j in range(10, n):
+        if obv_arr[j] > obv_arr[j - 10]:
+            VOTES[j, 8] = 1
+        elif obv_arr[j] < obv_arr[j - 10]:
+            VOTES[j, 8] = -1
+    del obv_arr
+    # 9 VWAP
     vwap20 = IL.vwap(H, L, C, V, 20)
-    aroon_up, aroon_dn = IL.aroon(H, L, 25)
-    tsi_arr = IL.tsi(C, 25, 13)
-    ulti = IL.ultimate_oscillator(H, L, C)
-    bop_arr = IL.bop(O, H, L, C)
+    for j in range(n):
+        if not np.isnan(vwap20[j]):
+            VOTES[j, 9] = 1 if C[j] > vwap20[j] else -1
+    del vwap20
+    # 10 Aroon
+    au, ad = IL.aroon(H, L, 25)
+    for j in range(n):
+        if not np.isnan(au[j]) and not np.isnan(ad[j]):
+            VOTES[j, 10] = 1 if au[j] > ad[j] else (-1 if au[j] < ad[j] else 0)
+    del au, ad
+    # 11 TSI
+    _col(IL.tsi(C, 25, 13), 11, 0.0)
+    # 12 Ultimate
+    _col(IL.ultimate_oscillator(H, L, C), 12, 50.0)
+    # 13 BOP
+    _col(IL.bop(O, H, L, C), 13, 0.0)
+    # 14 Vortex
     vp, vn = IL.vortex(H, L, C, 14)
+    for j in range(n):
+        if not np.isnan(vp[j]) and not np.isnan(vn[j]):
+            VOTES[j, 14] = 1 if vp[j] > vn[j] else (-1 if vp[j] < vn[j] else 0)
+    del vp, vn
+    # 15 ZLEMA
     zlema = IL.zero_lag_ema(C, 21)
+    for j in range(n):
+        if not np.isnan(zlema[j]):
+            VOTES[j, 15] = 1 if C[j] > zlema[j] else -1
+    del zlema
 
-    VOTES = np.zeros((n, N_SOURCES), dtype=np.float64)
-    for i in range(n):
-        # 0 RSI
-        VOTES[i, 0] = _b(rsi14[i] - 50.0)
-        # 1 Stoch
-        VOTES[i, 1] = _b(stoch14[i] - 50.0)
-        # 2 W%R
-        VOTES[i, 2] = _b(wpr14[i] + 50.0)
-        # 3 MFI
-        VOTES[i, 3] = _b(mfi14[i] - 50.0)
-        # 4 CMF
-        VOTES[i, 4] = _b(cmf20[i])
-        # 5 Force
-        VOTES[i, 5] = _b(force13[i])
-        # 6 Elder Bull
-        VOTES[i, 6] = _b(bull13[i])
-        # 7 Elder Bear (bear power>0 = bullish)
-        VOTES[i, 7] = _b(bear13[i])
-        # 8 OBV slope (10-bar)
-        if i >= 10 and not np.isnan(obv_arr[i]) and not np.isnan(obv_arr[i - 10]):
-            VOTES[i, 8] = 1.0 if obv_arr[i] > obv_arr[i - 10] else (-1.0 if obv_arr[i] < obv_arr[i - 10] else 0.0)
-        # 9 VWAP
-        if not np.isnan(vwap20[i]):
-            VOTES[i, 9] = 1.0 if C[i] > vwap20[i] else -1.0
-        # 10 Aroon
-        if not np.isnan(aroon_up[i]) and not np.isnan(aroon_dn[i]):
-            VOTES[i, 10] = 1.0 if aroon_up[i] > aroon_dn[i] else (-1.0 if aroon_up[i] < aroon_dn[i] else 0.0)
-        # 11 TSI
-        VOTES[i, 11] = _b(tsi_arr[i])
-        # 12 Ultimate
-        VOTES[i, 12] = _b(ulti[i] - 50.0)
-        # 13 BOP
-        VOTES[i, 13] = _b(bop_arr[i])
-        # 14 Vortex
-        if not np.isnan(vp[i]) and not np.isnan(vn[i]):
-            VOTES[i, 14] = 1.0 if vp[i] > vn[i] else (-1.0 if vp[i] < vn[i] else 0.0)
-        # 15 ZLEMA
-        if not np.isnan(zlema[i]):
-            VOTES[i, 15] = 1.0 if C[i] > zlema[i] else -1.0
+    # free the big pandas frame + raw arrays not needed anymore to save RAM
+    global DATASET
+    DATASET = None
+    import gc
+    gc.collect()
 
-    print(f"📊 Indicator votes computed: {N_SOURCES} sources x {n:,} candles")
+    print(f"📊 Indicator votes computed: {N_SOURCES} sources x {n:,} candles (int8)")
 
 
 @njit
@@ -522,7 +542,7 @@ def run_continuous_ai_evolution_loop():
     # dhundhte raho. Jaise hi data aata hai (upload/repo), 30 agents chalu.
     agents_per_gen = DEFAULT_AGENTS_PER_GEN
     top_n = DEFAULT_TOP_N
-    while DATASET is None:
+    while not _DATASET_LOADED:
         try:
             load_dataset()
         except FileNotFoundError as e:
