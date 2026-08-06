@@ -121,7 +121,27 @@ def load_dataset():
 # and set a confirmation threshold.
 # ---------------------------------------------------------------------------
 VOTES = None
-N_SOURCES = 16
+# Sab indicator + unke MULTIPLE parameter settings (variants). Har variant ek
+# source column hota hai — agents kisi bhi subset enable kar sakte hain, isliye
+# every indicator setting/parameter explore hota hai.
+INDICATOR_VARIANTS = [
+    ("rsi",       lambda C, H, L, V, p: IL.rsi(C, p),         (5, 9, 14, 21, 30), 50.0),
+    ("stoch",     lambda C, H, L, V, p: IL.stochastic(H, L, C, p, 3), (9, 14, 21), 50.0),
+    ("wpr",       lambda C, H, L, V, p: IL.williams_r(H, L, C, p), (9, 14, 21), -50.0),
+    ("mfi",       lambda C, H, L, V, p: IL.mfi(H, L, C, V, p), (14, 21, 30), 50.0),
+    ("cmf",       lambda C, H, L, V, p: IL.cmf(H, L, C, V, p), (20, 30), 0.0),
+    ("force",     lambda C, H, L, V, p: IL.force_index(C, V, p), (13, 21, 34), 0.0),
+    ("obv",       lambda C, H, L, V, p: IL.obv(C, V),         (10, 20), 0.0),
+    ("vwap",      lambda C, H, L, V, p: IL.vwap(H, L, C, V, p), (20, 30), 0.0),
+    ("aroon",     lambda C, H, L, V, p: IL.aroon(H, L, p),    (14, 25), 0.0),
+    ("tsi",       lambda C, H, L, V, p: IL.tsi(C, p, max(7, p // 2)), (13, 21, 30), 0.0),
+    ("ulti",      lambda C, H, L, V, p: IL.ultimate_oscillator(H, L, C), (28,), 50.0),
+    ("bop",       lambda C, H, L, V, p: IL.bop(OPENS, H, L, C), (1,), 0.0),
+    ("vortex",    lambda C, H, L, V, p: IL.vortex(H, L, C, p), (14, 21), 0.0),
+    ("zlema",     lambda C, H, L, V, p: IL.zero_lag_ema(C, p), (21, 30, 50), 0.0),
+    ("elder",     lambda C, H, L, V, p: IL.elder_bull_power(H, IL.ema_series(C, p), p), (13, 21), 0.0),
+]
+N_SOURCES = sum(len(v[2]) for v in INDICATOR_VARIANTS)
 
 
 @njit
@@ -138,15 +158,17 @@ def _b(v):
 
 def compute_indicator_votes():
     """Return VOTES: 2D int8 array [n, N_SOURCES], each col a vote source.
-    Computed ONE indicator at a time + freed, to stay inside free-tier RAM."""
+    Har indicator + har parameter variant ek column — every setting explore
+    hota hai. Computed ONE indicator at a time + freed (RAM safe)."""
     global VOTES
     n = len(CLOSES)
     if n <= 0:
         return
-    O, H, L, C, V = OPENS, HIGHS, LOWS, CLOSES, VOLUMES
+    C, H, L, O = CLOSES, HIGHS, LOWS, OPENS
+    V = VOLUMES
     VOTES = np.zeros((n, N_SOURCES), dtype=np.int8)
 
-    def _col(v, i, base=0.0):
+    def _b_col(v, base=0.0):
         col = np.zeros(n, dtype=np.int8)
         for j in range(n):
             x = v[j]
@@ -155,64 +177,47 @@ def compute_indicator_votes():
             else:
                 y = x - base
                 col[j] = 1 if y > 0 else (-1 if y < 0 else 0)
-        VOTES[:, i] = col
+        return col
 
-    # 0 RSI
-    _col(IL.rsi(C, 14), 0, 50.0)
-    # 1 Stoch
-    _col(IL.stochastic(H, L, C, 14, 3), 1, 50.0)
-    # 2 W%R
-    _col(IL.williams_r(H, L, C, 14), 2, -50.0)
-    # 3 MFI
-    _col(IL.mfi(H, L, C, V, 14), 3, 50.0)
-    # 4 CMF
-    _col(IL.cmf(H, L, C, V, 20), 4, 0.0)
-    # 5 Force
-    _col(IL.force_index(C, V, 13), 5, 0.0)
-    # 6 Elder Bull
-    ema13 = IL.ema_series(C, 13)
-    _col(IL.elder_bull_power(H, ema13, 13), 6, 0.0)
-    # 7 Elder Bear
-    _col(IL.elder_bear_power(L, ema13, 13), 7, 0.0)
-    del ema13
-    # 8 OBV slope (10-bar)
-    obv_arr = IL.obv(C, V)
-    for j in range(10, n):
-        if obv_arr[j] > obv_arr[j - 10]:
-            VOTES[j, 8] = 1
-        elif obv_arr[j] < obv_arr[j - 10]:
-            VOTES[j, 8] = -1
-    del obv_arr
-    # 9 VWAP
-    vwap20 = IL.vwap(H, L, C, V, 20)
-    for j in range(n):
-        if not np.isnan(vwap20[j]):
-            VOTES[j, 9] = 1 if C[j] > vwap20[j] else -1
-    del vwap20
-    # 10 Aroon
-    au, ad = IL.aroon(H, L, 25)
-    for j in range(n):
-        if not np.isnan(au[j]) and not np.isnan(ad[j]):
-            VOTES[j, 10] = 1 if au[j] > ad[j] else (-1 if au[j] < ad[j] else 0)
-    del au, ad
-    # 11 TSI
-    _col(IL.tsi(C, 25, 13), 11, 0.0)
-    # 12 Ultimate
-    _col(IL.ultimate_oscillator(H, L, C), 12, 50.0)
-    # 13 BOP
-    _col(IL.bop(O, H, L, C), 13, 0.0)
-    # 14 Vortex
-    vp, vn = IL.vortex(H, L, C, 14)
-    for j in range(n):
-        if not np.isnan(vp[j]) and not np.isnan(vn[j]):
-            VOTES[j, 14] = 1 if vp[j] > vn[j] else (-1 if vp[j] < vn[j] else 0)
-    del vp, vn
-    # 15 ZLEMA
-    zlema = IL.zero_lag_ema(C, 21)
-    for j in range(n):
-        if not np.isnan(zlema[j]):
-            VOTES[j, 15] = 1 if C[j] > zlema[j] else -1
-    del zlema
+    def _b_two(v, base=0.0):
+        """For tuple-returning indicators (aroon, vortex): vote = first > second."""
+        col = np.zeros(n, dtype=np.int8)
+        v1, v2 = v
+        for j in range(n):
+            if np.isnan(v1[j]) or np.isnan(v2[j]):
+                col[j] = 0
+            else:
+                col[j] = 1 if v1[j] > v2[j] else (-1 if v1[j] < v2[j] else 0)
+        return col
+
+    def _slope(v, window):
+        col = np.zeros(n, dtype=np.int8)
+        for j in range(window, n):
+            if v[j] > v[j - window]:
+                col[j] = 1
+            elif v[j] < v[j - window]:
+                col[j] = -1
+        return col
+
+    col_idx = 0
+    for name, fn, params, base in INDICATOR_VARIANTS:
+        for p in params:
+            try:
+                if name == "obv":
+                    col = _slope(fn(C, H, L, V, p), p)
+                elif name in ("aroon", "vortex"):
+                    col = _b_two(fn(C, H, L, V, p), base)
+                elif name == "bop":
+                    col = _b_col(fn(C, H, L, V, p), base)
+                elif name == "vwap":
+                    col = _b_col(fn(C, H, L, V, p), base)
+                else:
+                    col = _b_col(fn(C, H, L, V, p), base)
+                VOTES[:, col_idx] = col
+                del col
+            except Exception:
+                VOTES[:, col_idx] = 0
+            col_idx += 1
 
     # free the big pandas frame + raw arrays not needed anymore to save RAM
     global DATASET
@@ -220,7 +225,7 @@ def compute_indicator_votes():
     import gc
     gc.collect()
 
-    print(f"📊 Indicator votes computed: {N_SOURCES} sources x {n:,} candles (int8)")
+    print(f"📊 Indicator votes computed: {N_SOURCES} sources ({len(INDICATOR_VARIANTS)} indicators x settings) x {n:,} candles (int8)")
 
 
 @njit
