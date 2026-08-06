@@ -428,25 +428,27 @@ def evaluate_agent(pnls):
     # Quality: win_rate ko sabse zyada weight (ye improve hona chahiye),
     # PF secondary. WR target ke paas => strong reward.
     wr_proximity = max(0.0, win_rate / max(TARGET_WR, 1.0))   # 0..1+ (1.0 = target WR)
-    # BALANCED: winrate strong weight (cube) + PF behtar bonus.
-    # Dono optimize hote hain — high-WR aur high-PF agents dono aage.
-    quality_score = (wr_proximity ** 3.0) * (1.0 + 0.5 * pf)
+    # WR dominant (cube) + PF bonus. Dono optimize — high-WR aur high-PF aage.
+    # volume independent (trade count RR pe depend karta hai, usse bias mat karo)
+    quality_score = (wr_proximity ** 3.0) * (1.0 + 0.6 * pf)
 
-    # Volume: APPROX benchmark band. Too-few trades (<300) weak, ideal 600-3500,
-    # too-many (>4000) ko bhi over-incentive NAHI — sirf band ke andar full credit.
-    # (benchmark modes: SUPER_LOOSE~6384, AGGRESSIVE~2003, Sw0.6~944, etc.)
-    if n_trades < 300:
-        volume_score = 0.2 + 0.6 * (n_trades / 300.0)         # poor, tapering
-    elif n_trades <= 4000:
-        volume_score = 1.0                                     # ideal approx range
+    # Volume: NEUTRAL (sirf bahut kam trades penalty, warna 1.0) — isse 1:1 RR
+    # ka bias nahi banta, high-WR/high-RR dono explore hote hain.
+    if n_trades < 200:
+        volume_score = 0.5 + 0.5 * (n_trades / 200.0)
     else:
-        volume_score = max(0.7, 1.0 - (n_trades - 4000) / 6000.0)  # zyada pe thoda kam
+        volume_score = 1.0
 
     # Robustness: max drawdown penalty (safe agents aage)
     dd_penalty = 1.0 / (1.0 + max_dd / 300.0)
 
-    # 50%+ winrate bonus — target achieve karne ka nudge
-    wr50_bonus = 1.0 if win_rate >= 50.0 else (0.5 + win_rate / 100.0)
+    # STRONG 50%+ winrate bonus — agents ko 50% ke upar push karta hai
+    if win_rate >= 55.0:
+        wr50_bonus = 3.0
+    elif win_rate >= 50.0:
+        wr50_bonus = 2.0
+    else:
+        wr50_bonus = 0.3 + win_rate / 100.0
 
     fitness = net_profit * quality_score * volume_score * dd_penalty * wr50_bonus
 
