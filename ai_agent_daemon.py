@@ -419,7 +419,8 @@ def evaluate_agent(pnls):
     # Quality: win_rate ko sabse zyada weight (ye improve hona chahiye),
     # PF secondary. WR target ke paas => strong reward.
     wr_proximity = max(0.0, win_rate / max(TARGET_WR, 1.0))   # 0..1+ (1.0 = target WR)
-    quality_score = (wr_proximity ** 2.0) * (1.0 + 0.35 * pf)  # WR primary, PF helps
+    # WR ko bahut zyada weight (cube) + PF bonus — tight-TP high-WR agents aage.
+    quality_score = (wr_proximity ** 3.0) * (1.0 + 0.3 * pf)
 
     # Volume: APPROX benchmark band. Too-few trades (<300) weak, ideal 600-3500,
     # too-many (>4000) ko bhi over-incentive NAHI — sirf band ke andar full credit.
@@ -580,8 +581,11 @@ def run_continuous_ai_evolution_loop():
         "Agent Horizon-V", "Agent Quantum-Z", "Agent Valkyrie-1"
     ]
 
-    sl_options = [1.5, 2.0] # Fixed SL $1.5 or $2.0
-    tp_options = [3.0, 4.0, 4.5, 6.0]
+    # SL/TP — tight TP (SL se chhota TP) = higher winrate (scalping style,
+    # honest: zyada trades pehle TP hit karte hain). Evolution in sab explore
+    # karta hai aur fit hona choose karega.
+    sl_options = [0.5, 1.0, 1.5, 2.0, 3.0]
+    tp_options = [0.5, 0.8, 1.0, 1.5, 2.0, 3.0, 4.0, 4.5, 6.0]
     # LOOSER params (benchmark SUPER_LOOSE jaisi) -> zyada signals/trades.
     # Benchmark champion modes: sw=0.3, wk=0.5, dp=3.0 -> 6000+ trades.
     psw_options = [0.1, 0.15, 0.2, 0.3, 0.4, 0.5, 0.6]
