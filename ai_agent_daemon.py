@@ -259,23 +259,34 @@ def evaluate_agent(pnls):
 
     # ---- Benchmark "BEAT TARGET" incentive ----
     # Agents jo target benchmark (84.32% WR / PF 10.64) ko hit/beat karte hain
-    # unhe boost — AI target achieve/beat karne ki taraf optimize hota hai.
+    # unhe strong boost — AI target achieve/beat karne ki taraf optimize hota hai.
     target_score = _target_score(win_rate, pf)
 
-    # ---- TRADE VOLUME BONUS ----
-    # Benchmark ke modes (SUPER_LOOSE=6384, AGGRESSIVE=2003 trades) jitne zyada
-    # trades wale agents ko reward do — taaki har mode me zyada trades bane.
-    # log-scaling taaki sirf few-trade agents pe unrealistic boost na ho.
-    trade_bonus = 1.0 + 0.5 * (n_trades / 500.0) ** 0.7
+    # ---- ADVANCED MULTI-OBJECTIVE FITNESS ----
+    # Benchmark achieve karne ke liye humein QUALITY + VOLUME dono chahiye:
+    #   - win_rate aur profit_factor ko zyada weight (quality)
+    #   - par trades bhi zaroori (volume) taaki statistically strong ho
+    # Multi-objective: quality_score * volume_score * robustness_score
+    #
+    # Quality: WR target ke paas => exponential boost. PF bhi.
+    wr_proximity = max(0.0, win_rate / max(TARGET_WR, 1.0))   # 0..1+ (1.0 = target WR)
+    pf_proximity = min(pf / max(TARGET_PF, 0.01), 5.0)        # capped
+    quality_score = (wr_proximity ** 2.0) * (1.0 + 0.6 * pf_proximity)
 
-    fitness = net_profit * (pf ** 1.5) * (win_rate / 20.0) / (max_dd + 1.0)
-    fitness *= (1.0 + 0.5 * target_score)
-    fitness *= trade_bonus
+    # Volume: zyada trades = statistically zyada solid (log-scaled, capped)
+    vol_ratio = min(n_trades / 2000.0, 1.0)                   # 2000+ trades = full volume credit
+    volume_score = 0.3 + 0.7 * (vol_ratio ** 0.7)
+
+    # Robustness: max drawdown penalty (safe agents aage)
+    dd_penalty = 1.0 / (1.0 + max_dd / 300.0)
+
+    fitness = net_profit * quality_score * volume_score * dd_penalty
 
     return {
         "fitness": round(fitness, 4),
         "target_score": round(target_score, 4),
-        "trade_bonus": round(trade_bonus, 4),
+        "quality_score": round(quality_score, 4),
+        "volume_score": round(volume_score, 4),
         "trades": int(n_trades),
         "win_rate": round(win_rate, 2),
         "net_profit": round(net_profit, 2),
@@ -291,15 +302,22 @@ TARGET_WR_LOW = 78.24      # acceptable lower bound
 TARGET_PF_LOW = 5.46       # acceptable lower bound
 
 def _target_score(win_rate, pf):
-    """0-4 score: agents ko target range hit/beat karne ka score deta hai."""
+    """0-8 graded score: agents ko target ke paas aane pe continuously reward.
+    Threshold cross karne pe bonus — target achieve/beat karne ka goal."""
     s = 0.0
+    # WR: graded proximity (0, lower-band, 3/4 to target, full at/above)
     if win_rate >= TARGET_WR:
-        s += 2.0
+        s += 4.0
     elif win_rate >= TARGET_WR_LOW:
+        s += 2.0 + 2.0 * (win_rate - TARGET_WR_LOW) / max(TARGET_WR - TARGET_WR_LOW, 1.0)
+    elif win_rate >= 40.0:
         s += 1.0
+    # PF: graded
     if pf >= TARGET_PF:
-        s += 2.0
+        s += 4.0
     elif pf >= TARGET_PF_LOW:
+        s += 2.0 + 2.0 * (pf - TARGET_PF_LOW) / max(TARGET_PF - TARGET_PF_LOW, 0.1)
+    elif pf >= 1.2:
         s += 1.0
     return s
 
@@ -412,48 +430,67 @@ def run_continuous_ai_evolution_loop():
         t0 = time.time()
 
         # Best agents = future generations ke parents (self-improvement)
-        # trades ko aage priority — zyada trades wale agents evolve hokar parents banen
         best_list = sorted(GLOBAL_AI_MEMORY.values(),
-                           key=lambda x: (x.get("target_score", 0.0), x["trades"],
-                                          x["win_rate"], x["profit_factor"]), reverse=True)[:max(10, agents_per_gen // 3)]
+                           key=lambda x: (x.get("fitness", 0.0), x.get("target_score", 0.0),
+                                          x["win_rate"], x["profit_factor"]), reverse=True)
 
         # Batch generate N UNIQUE AI Agent Genomes (dedup guarantee)
         batch_tasks = []
         seen_this_gen = set()
+
+        def _tournament(k=4):
+            """Tournament selection: random k me se best — ek parent."""
+            if not best_list:
+                return None
+            return max(random.sample(best_list, min(k, len(best_list))),
+                       key=lambda x: x.get("fitness", 0.0))
+
         while len(batch_tasks) < agents_per_gen:
-            # 60% parent-mutation (best se improve), 40% fresh random exploration
-            if best_list and random.random() < 0.6:
-                p = random.choice(best_list)
-                # parent se copy, phir har param me mutation ka chance
-                m = p["mode"]
-                sl = p["sl"]; tp = p["tp"]; psw = p["psw"]; pwk = p["pwk"]
-                pdp = p["pdp"]; ptr = p["ptr"]; sess = p["sess"]
-                if random.random() < 0.3:
-                    sl = random.choice(sl_options)
-                if random.random() < 0.3:
-                    tp = random.choice(tp_options)
-                if random.random() < 0.3:
-                    psw = random.choice(psw_options)
-                if random.random() < 0.3:
-                    pwk = random.choice(pwk_options)
-                if random.random() < 0.3:
-                    pdp = random.choice(pdp_options)
-                if random.random() < 0.3:
-                    ptr = random.choice(ptr_options)
-                if random.random() < 0.15:
-                    sess = random.choice(sess_options)
-                if random.random() < 0.05:
-                    m = random.choice(modes)
+            r = random.random()
+            m = random.choice(modes); sl = random.choice(sl_options)
+            tp = random.choice(tp_options); psw = random.choice(psw_options)
+            pwk = random.choice(pwk_options); pdp = random.choice(pdp_options)
+            ptr = random.choice(ptr_options); sess = random.choice(sess_options)
+
+            if r < 0.35 and len(best_list) >= 2:
+                # CROSSOVER: 2 tournament parents combine (advance evolution)
+                p1 = _tournament()
+                p2 = _tournament()
+                if p1 and p2:
+                    keys = ["sl", "tp", "psw", "pwk", "pdp", "ptr", "sess", "mode"]
+                    child = {}
+                    for k in keys:
+                        a = p1.get(k, random.choice(sl_options if k == "sl" else globals().get(k + "_options", [0])))
+                        b = p2.get(k, a)
+                        child[k] = a if random.random() < 0.5 else b
+                    m = child["mode"]; sl = child["sl"]; tp = child["tp"]
+                    psw = child["psw"]; pwk = child["pwk"]; pdp = child["pdp"]
+                    ptr = child["ptr"]; sess = child["sess"]
+                    # kuch mutation
+                    if random.random() < 0.2: sl = random.choice(sl_options)
+                    if random.random() < 0.2: tp = random.choice(tp_options)
+                    if random.random() < 0.2: psw = random.choice(psw_options)
+                    if random.random() < 0.2: pwk = random.choice(pwk_options)
+                    if random.random() < 0.2: pdp = random.choice(pdp_options)
+                    if random.random() < 0.2: ptr = random.choice(ptr_options)
+                    if random.random() < 0.1: sess = random.choice(sess_options)
+                    if random.random() < 0.05: m = random.choice(modes)
+            elif r < 0.75 and best_list:
+                # MUTATION: 1 tournament parent se thoda badlo (fine-tune)
+                p = _tournament()
+                m = p["mode"]; sl = p["sl"]; tp = p["tp"]; psw = p["psw"]
+                pwk = p["pwk"]; pdp = p["pdp"]; ptr = p["ptr"]; sess = p["sess"]
+                if random.random() < 0.25: sl = random.choice(sl_options)
+                if random.random() < 0.25: tp = random.choice(tp_options)
+                if random.random() < 0.25: psw = random.choice(psw_options)
+                if random.random() < 0.25: pwk = random.choice(pwk_options)
+                if random.random() < 0.25: pdp = random.choice(pdp_options)
+                if random.random() < 0.25: ptr = random.choice(ptr_options)
+                if random.random() < 0.15: sess = random.choice(sess_options)
+                if random.random() < 0.08: m = random.choice(modes)
             else:
-                # fresh random genome
-                m = random.choice(modes)
-                sl = random.choice(sl_options)
-                tp = random.choice(tp_options)
-                psw = random.choice(psw_options)
-                pwk = random.choice(pwk_options)
-                pdp = random.choice(pdp_options)
-                ptr = random.choice(ptr_options)
-                sess = random.choice(sess_options)
+                # FRESH random exploration (30%) — diversity
+                pass
 
             g = {
                 "mode": m,
@@ -482,11 +519,11 @@ def run_continuous_ai_evolution_loop():
                 if key not in GLOBAL_AI_MEMORY or eval_res["fitness"] > GLOBAL_AI_MEMORY[key]["fitness"]:
                     GLOBAL_AI_MEMORY[key] = {**agent, **eval_res}
 
-        # Rank: target-beating pehle, phir zyada trades wale aage
+        # Rank: best fitness (advance multi-objective) first
         sorted_memory = sorted(list(GLOBAL_AI_MEMORY.values()),
-                               key=lambda x: (x.get("target_score", 0.0),
-                                              x["trades"], x["win_rate"],
-                                              x["profit_factor"]), reverse=True)
+                               key=lambda x: (x.get("fitness", 0.0),
+                                              x.get("target_score", 0.0),
+                                              x["win_rate"], x["profit_factor"]), reverse=True)
 
         # Prepare Top N for Dashboard JSON (configurable, default 50)
         top_n_formatted = []
