@@ -453,6 +453,17 @@ def evaluate_agent(pnls):
 
     fitness = net_profit * quality_score * volume_score * dd_penalty * wr50_bonus
 
+    # ===== 65%+ WINRATE JACKPOT BONUS =====
+    # Agent jo 65%+ winrate achieve karta hai usse BADA fitness bonus (1000) —
+    # taaki 65%+ wale agents leaderboard me upar aa jayein aur evolution usi
+    # taraf push ho. Har level par bonus badhta hai (65%+, 70%+, 75%+).
+    if win_rate >= 75.0:
+        fitness += 1000.0 + (win_rate - 75.0) * 40.0
+    elif win_rate >= 70.0:
+        fitness += 1000.0
+    elif win_rate >= 65.0:
+        fitness += 1000.0
+
     return {
         "fitness": round(fitness, 4),
         "target_score": round(target_score, 4),
