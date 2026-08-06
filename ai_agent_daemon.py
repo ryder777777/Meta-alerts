@@ -121,6 +121,7 @@ def load_dataset():
 # and set a confirmation threshold.
 # ---------------------------------------------------------------------------
 VOTES = None
+ATR4 = None   # ATR(4) series for ATR-based SL
 # Sab indicator + unke MULTIPLE parameter settings (variants). Har variant ek
 # source column hota hai — agents kisi bhi subset enable kar sakte hain, isliye
 # every indicator setting/parameter explore hota hai.
@@ -160,7 +161,7 @@ def compute_indicator_votes():
     """Return VOTES: 2D int8 array [n, N_SOURCES], each col a vote source.
     Har indicator + har parameter variant ek column — every setting explore
     hota hai. Computed ONE indicator at a time + freed (RAM safe)."""
-    global VOTES
+    global VOTES, ATR4
     n = len(CLOSES)
     if n <= 0:
         return
@@ -219,6 +220,9 @@ def compute_indicator_votes():
                 VOTES[:, col_idx] = 0
             col_idx += 1
 
+    # ATR(4) for ATR-based SL (ATR multiplier 1.0)
+    ATR4 = IL.atr(H, L, C, 4)
+
     # free the big pandas frame + raw arrays not needed anymore to save RAM
     global DATASET
     DATASET = None
@@ -258,7 +262,8 @@ def simulate_agent_genome(
     mode_code, fixed_sl, tp_dollars,
     pSw, pWk, pDp, pTr,
     use_session_filter=False, sp_comp=0.14, fixed_lot=0.01,
-    VOTES_arr=None, enabled=0, ind_conf=0, n_enabled=0
+    VOTES_arr=None, enabled=0, ind_conf=0, n_enabled=0,
+    atr_arr=None, sl_mode=0
 ):
     n = len(closes)
 
@@ -352,14 +357,16 @@ def simulate_agent_genome(
         if fireBuy:
             last_buy_c1 = c1
             aE = opens[i] + sp_comp
-            aS = aE - fixed_sl
+            # SL: ATR(4)*1.0 (dynamic) ya custom dollar
+            sl_eff = (atr_arr[i - 1] if (sl_mode == 1 and atr_arr is not None and i >= 1 and not np.isnan(atr_arr[i - 1])) else fixed_sl)
+            aS = aE - sl_eff
             aTP = aE + tp_dollars if tp_dollars > 0 else 0.0
 
             hitSL = lows[i] <= aS
             hitTP = (highs[i] >= aTP) if tp_dollars > 0 else False
 
             if hitSL and not hitTP:
-                pnl_pts = -fixed_sl
+                pnl_pts = -sl_eff
             elif hitTP:
                 pnl_pts = tp_dollars
             else:
@@ -371,14 +378,15 @@ def simulate_agent_genome(
         elif fireSell:
             last_sell_c1 = c1
             aE = opens[i] - sp_comp
-            aS = aE + fixed_sl
+            sl_eff = (atr_arr[i - 1] if (sl_mode == 1 and atr_arr is not None and i >= 1 and not np.isnan(atr_arr[i - 1])) else fixed_sl)
+            aS = aE + sl_eff
             aTP = aE - tp_dollars if tp_dollars > 0 else 0.0
 
             hitSL = highs[i] >= aS
             hitTP = (lows[i] <= aTP) if tp_dollars > 0 else False
 
             if hitSL and not hitTP:
-                pnl_pts = -fixed_sl
+                pnl_pts = -sl_eff
             elif hitTP:
                 pnl_pts = tp_dollars
             else:
@@ -489,7 +497,8 @@ EVALUATED_GENOMES = set()
 def _genome_key(agent):
     return (agent["mode"], agent["sl"], agent["tp"],
             agent["psw"], agent["pwk"], agent["pdp"], agent["ptr"], agent["sess"],
-            agent.get("enabled", 0), agent.get("ind_conf", 0))
+            agent.get("enabled", 0), agent.get("ind_conf", 0),
+            agent.get("sl_mode", 0))
 
 
 def _count_enabled(en):
@@ -569,7 +578,7 @@ def run_continuous_ai_evolution_loop():
         print(f"⚠️  Indicator compute failed ({exc}) — base strategy only")
 
     # Prewarm JIT
-    _ = simulate_agent_genome(OPENS[:1000], HIGHS[:1000], LOWS[:1000], CLOSES[:1000], HOURS[:1000], 0, 1.5, 3.0, 0.3, 0.5, 3.0, 0, False, 0.14, 0.01, VOTES, 0, 0, 0)
+    _ = simulate_agent_genome(OPENS[:1000], HIGHS[:1000], LOWS[:1000], CLOSES[:1000], HOURS[:1000], 0, 1.5, 3.0, 0.3, 0.5, 3.0, 0, False, 0.14, 0.01, VOTES, 0, 0, 0, ATR4, 0)
 
     modes = ["VeryTight", "ORIGINAL", "SUPER_LOOSE", "AGGRESSIVE", "Sw0.6_Wi1.2", "Sw0.4_Wi0.8", "Triple_Med", "SUPER_LOOSE_2"]
     mode_map = {m: idx for idx, m in enumerate(modes)}
@@ -581,11 +590,11 @@ def run_continuous_ai_evolution_loop():
         "Agent Horizon-V", "Agent Quantum-Z", "Agent Valkyrie-1"
     ]
 
-    # SL/TP — tight TP (SL se chhota TP) = higher winrate (scalping style,
-    # honest: zyada trades pehle TP hit karte hain). Evolution in sab explore
-    # karta hai aur fit hona choose karega.
-    sl_options = [0.5, 1.0, 1.5, 2.0, 3.0]
-    tp_options = [0.5, 0.8, 1.0, 1.5, 2.0, 3.0, 4.0, 4.5, 6.0]
+    # TP target = C0 candle CLOSE (fixed TP nahi, user requirement).
+    # SL options: custom dollars ($0.50, $1, $1.5, $2) ya ATR(4)*1.0 (sl_mode=1).
+    sl_options = [0.5, 1.0, 1.5, 2.0]
+    tp_options = [0.0]   # 0.0 => C0 Candle Close exit
+    sl_mode_options = [0, 1]   # 0=custom $, 1=ATR(4)*1.0
     # LOOSER params (benchmark SUPER_LOOSE jaisi) -> zyada signals/trades.
     # Benchmark champion modes: sw=0.3, wk=0.5, dp=3.0 -> 6000+ trades.
     psw_options = [0.1, 0.15, 0.2, 0.3, 0.4, 0.5, 0.6]
@@ -631,6 +640,7 @@ def run_continuous_ai_evolution_loop():
             pwk = random.choice(pwk_options); pdp = random.choice(pdp_options)
             ptr = random.choice(ptr_options); sess = random.choice(sess_options)
             enabled = _random_enabled(); ind_conf = random.choice([0, 1, 2, 3, 4, 5, 6])
+            sl_mode = random.choice(sl_mode_options)
 
             if r < 0.35 and len(best_list) >= 2:
                 # CROSSOVER: 2 tournament parents combine (advance evolution)
@@ -650,6 +660,7 @@ def run_continuous_ai_evolution_loop():
                     pe = p1 if random.random() < 0.5 else p2
                     enabled = pe.get("enabled", _random_enabled())
                     ind_conf = pe.get("ind_conf", random.choice([0, 1, 2, 3]))
+                    sl_mode = pe.get("sl_mode", random.choice(sl_mode_options))
                     # kuch mutation
                     if random.random() < 0.2: sl = random.choice(sl_options)
                     if random.random() < 0.2: tp = random.choice(tp_options)
@@ -668,6 +679,8 @@ def run_continuous_ai_evolution_loop():
                 pwk = p["pwk"]; pdp = p["pdp"]; ptr = p["ptr"]; sess = p["sess"]
                 enabled = p.get("enabled", _random_enabled())
                 ind_conf = p.get("ind_conf", random.choice([0, 1, 2, 3]))
+                sl_mode = p.get("sl_mode", random.choice(sl_mode_options))
+                if random.random() < 0.2: sl_mode = random.choice(sl_mode_options)
                 if random.random() < 0.25: sl = random.choice(sl_options)
                 if random.random() < 0.25: tp = random.choice(tp_options)
                 if random.random() < 0.25: psw = random.choice(psw_options)
@@ -688,7 +701,8 @@ def run_continuous_ai_evolution_loop():
                 "sl": sl, "tp": tp, "psw": psw, "pwk": pwk,
                 "pdp": pdp, "ptr": ptr, "sess": sess,
                 "enabled": enabled, "ind_conf": ind_conf,
-                "n_enabled": _count_enabled(enabled)
+                "n_enabled": _count_enabled(enabled),
+                "sl_mode": sl_mode
             }
             key = _genome_key(g)
             # TRUE DEDUP: explored combo skip — naya unique hi test karo
@@ -705,7 +719,8 @@ def run_continuous_ai_evolution_loop():
                 agent["psw"], agent["pwk"], agent["pdp"], agent["ptr"],
                 agent["sess"], 0.14, 0.01,
                 VOTES, agent.get("enabled", 0), agent.get("ind_conf", 0),
-                agent.get("n_enabled", 0)
+                agent.get("n_enabled", 0),
+                ATR4, agent.get("sl_mode", 0)
             )
             eval_res = evaluate_agent(pnls)
             if eval_res["trades"] >= 10 and eval_res["net_profit"] > 0:
@@ -723,12 +738,13 @@ def run_continuous_ai_evolution_loop():
         top_n_formatted = []
         for rank_i, ag in enumerate(sorted_memory[:top_n], start=1):
             name = agent_names_pool[(rank_i - 1) % len(agent_names_pool)]
-            tp_desc = f"Target TP ${ag['tp']}" if ag["tp"] > 0 else "C0 Candle Close"
+            tp_desc = "C0 Candle Close"   # TP target hamesha C0 close
+            sl_desc = f"ATR(4)x1" if ag.get("sl_mode", 0) == 1 else f"Fixed SL ${ag['sl']}"
             top_n_formatted.append({
                 "rank": rank_i,
                 "agent_name": name,
                 "mode": ag["mode"],
-                "sl_setting": f"Fixed SL ${ag['sl']}",
+                "sl_setting": sl_desc,
                 "tp_exit": tp_desc,
                 "win_rate": ag["win_rate"],
                 "trades_3yr": ag["trades"],

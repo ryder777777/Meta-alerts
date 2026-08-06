@@ -398,3 +398,24 @@ def zero_lag_ema(closes, period=21):
             s = a * (2.0 * closes[i] - closes[i - lag]) + (1.0 - a) * s
             out[i] = s
     return out
+
+
+@njit
+def atr(highs, lows, closes, period=14):
+    """Average True Range — volatility measure."""
+    L = len(closes)
+    out = np.full(L, np.nan)
+    if L < period + 1:
+        return out
+    tr0 = max(highs[1] - lows[1], abs(highs[1] - closes[0]), abs(lows[1] - closes[0]))
+    s = tr0
+    for i in range(1, period + 1):
+        tr = max(highs[i] - lows[i], abs(highs[i] - closes[i-1]), abs(lows[i] - closes[i-1]))
+        s += tr
+    s /= period
+    out[period] = s
+    for i in range(period + 1, L):
+        tr = max(highs[i] - lows[i], abs(highs[i] - closes[i-1]), abs(lows[i] - closes[i-1]))
+        s = (s * (period - 1) + tr) / period
+        out[i] = s
+    return out
