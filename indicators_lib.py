@@ -378,19 +378,22 @@ def vortex(highs, lows, closes, period=14):
 
 @njit
 def zero_lag_ema(closes, period=21):
-    """Zero-Lag EMA — bull if close>zlema, bear if close<zlema."""
+    """Zero-Lag EMA — bull if close>zlema, bear if close<zlema.
+    NO look-ahead: seed uses only past closes, value at i depends on
+    closes[i] and closes[i-lag] (both <= i)."""
     L = len(closes)
     out = np.full(L, np.nan)
-    if L < period * 2:
+    if L < period:
         return out
     a = 2.0 / (period + 1.0)
     lag = (period - 1) // 2
+    # seed with SMA of first `period` closes (past only)
     s = 0.0
     for i in range(period):
-        s += closes[i + lag]
+        s += closes[i]
     s /= period
-    out[period + lag] = s
-    for i in range(period + lag + 1, L):
+    out[period - 1] = s
+    for i in range(period, L):
         if i - lag >= 0:
             s = a * (2.0 * closes[i] - closes[i - lag]) + (1.0 - a) * s
             out[i] = s

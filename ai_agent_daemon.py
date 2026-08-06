@@ -331,8 +331,11 @@ def simulate_agent_genome(
         # 2) Controlled confluence: indicators STRONGLY flip bullish (net crosses
         #    into near-total agreement) => extra discrete entry (more trades).
         net = 0.0
-        if n_enabled > 0 and VOTES_arr is not None:
-            net = _net_votes(VOTES_arr, i, enabled, n_enabled)
+        # Entry C0 open pe hota hai; signal C1 closed se confirm. Isliye indicator
+        # state bhi CLOSED bar (i-1) se use karo — entry candle ka hi use karna
+        # look-ahead (future) hota. isse results 100% honest rehte hain.
+        if n_enabled > 0 and VOTES_arr is not None and i >= 1:
+            net = _net_votes(VOTES_arr, i - 1, enabled, n_enabled)
         eff_conf = ind_conf if n_enabled > 0 else 0.0
 
         fireBuy = bullSetup and tk_buy and (last_buy_c1 != c1) and (net >= eff_conf)
