@@ -62,9 +62,34 @@ def get_system_status():
 def render_dashboard_html():
     status = get_system_status()
     lr = status.get("live_results", {})
+    mem = status.get("ai_memory", {})
     # AI agents ka TARGET (goal) — achieve karne ke liye, results ke roop me NAHI
     target_wr = 84.32
     target_pf = 10.64
+    generation = mem.get("generation_counter", 0)
+    agents_per_gen = mem.get("agents_per_generation", 0)
+    total_sim = mem.get("total_simulated_ai_agents", 0)
+    agents_list = mem.get("all_fixed_sl_15_20_ai_agents", [])
+
+    # AI agents live evolution leaderboard (server-side rows)
+    agents_rows = ""
+    for idx, ag in enumerate(agents_list):
+        rank = ag.get("rank", idx + 1)
+        badge = "🥇" if rank == 1 else "🥈" if rank == 2 else "🥉" if rank == 3 else f"#{rank}"
+        color = "var(--accent-green)" if ag.get("win_rate", 0) >= 70 else "var(--accent-gold)"
+        agents_rows += (
+            "<tr>"
+            f"<td style='font-weight:bold;color:var(--accent-cyan);'>{badge}</td>"
+            f"<td style='font-weight:700;color:var(--accent-green);'>🤖 {ag.get('agent_name','-')}</td>"
+            f"<td><span class='badge-tag'>{ag.get('mode','-')}</span></td>"
+            f"<td>{ag.get('sl_setting','-')}</td>"
+            f"<td>{ag.get('tp_exit','-')}</td>"
+            f"<td style='font-weight:700;color:var(--accent-gold);'>{ag.get('trades_3yr',0):,}</td>"
+            f"<td style='color:{color};font-weight:800;'>{ag.get('win_rate',0)}%</td>"
+            f"<td style='color:var(--accent-green);'>${ag.get('net_profit_001_lot',0):,.2f}</td>"
+            f"<td style='color:var(--accent-cyan);font-weight:700;'>{ag.get('profit_factor',0)}</td>"
+            "</tr>"
+        )
 
     # Live results -> server-side initial rows
     lr_total = lr.get("total_trades", 0)
@@ -461,12 +486,47 @@ def render_dashboard_html():
         </div>
 
         <div class="card">
+            <div class="card-label">🤖 AI Evolution Status</div>
+            <div class="card-value">
+                <span style="color: var(--accent-cyan);" id="ai-gen">Gen {generation}</span>
+            </div>
+            <div class="card-sub" id="ai-sim">{agents_per_gen} agents/gen • {total_sim} evaluated • 0% repeat</div>
+        </div>
+
+        <div class="card">
             <div class="card-label">AI Optimization Target</div>
             <div class="card-value">
                 <span style="color: var(--accent-gold);">🎯 Beat Target</span>
             </div>
             <div class="card-sub">{target_wr}% Win Rate • PF {target_pf} • Agents optimize toward this</div>
         </div>
+    </div>
+
+    <!-- 🤖 AI AGENTS LIVE EVOLUTION LEADERBOARD -->
+    <div class="section-title">🤖 AI Agents — Live Evolution (Real backtest on 1.06M Gold M1, no repeats)</div>
+    <div class="table-card">
+        <table>
+            <thead>
+                <tr>
+                    <th>Rank</th>
+                    <th>AI Agent</th>
+                    <th>Mode</th>
+                    <th>SL</th>
+                    <th>TP Exit</th>
+                    <th>Trades (3yr)</th>
+                    <th>Win Rate</th>
+                    <th>Net (0.01 lot)</th>
+                    <th>Profit Factor</th>
+                </tr>
+            </thead>
+            <tbody id="agents-body">
+                {agents_rows}
+            </tbody>
+        </table>
+        <p style="color:var(--text-muted); font-size:12px; margin-top:10px;">
+            Ye agents 24/7 evolve ho rahe hain — har generation naye unique param combos test karta hai, best aage badhte hain.
+            <span id="agents-updated"></span>
+        </p>
     </div>
 
     <!-- 📊 REAL LIVE RESULTS TABLE (benchmark ki jagah) -->
@@ -694,6 +754,42 @@ def render_dashboard_html():
             if (uptimeEl && data.uptime_str) uptimeEl.innerText = data.uptime_str;
 
             const lr = data.live_results || {{}};
+
+            // AI evolution status
+            const mem = data.ai_memory || {{}};
+            const genEl = document.getElementById('ai-gen');
+            const simEl = document.getElementById('ai-sim');
+            if (genEl) genEl.innerText = 'Gen ' + (mem.generation_counter || 0);
+            if (simEl) simEl.innerText = (mem.agents_per_generation || 0) + ' agents/gen • ' +
+                (mem.total_simulated_ai_agents || 0) + ' evaluated • 0% repeat';
+            const updEl = document.getElementById('agents-updated');
+            if (updEl && mem.last_updated) updEl.innerText = 'Updated: ' + mem.last_updated + ' UTC';
+
+            // AI agents leaderboard
+            const agentsBody = document.getElementById('agents-body');
+            if (agentsBody) {{
+                const agents = mem.all_fixed_sl_15_20_ai_agents || [];
+                if (agents.length > 0) {{
+                    let rows = '';
+                    agents.forEach((ag, idx) => {{
+                        const badge = ag.rank === 1 ? '🥇' : ag.rank === 2 ? '🥈' : ag.rank === 3 ? '🥉' : '#' + (ag.rank || (idx+1));
+                        const col = (ag.win_rate || 0) >= 70 ? 'var(--accent-green)' : 'var(--accent-gold)';
+                        rows += `
+                        <tr>
+                            <td style="font-weight:bold;color:var(--accent-cyan);">${{badge}}</td>
+                            <td style="font-weight:700;color:var(--accent-green);">🤖 ${{ag.agent_name}}</td>
+                            <td><span class="badge-tag">${{ag.mode}}</span></td>
+                            <td>${{ag.sl_setting}}</td>
+                            <td>${{ag.tp_exit}}</td>
+                            <td style="font-weight:700;color:var(--accent-gold);">${{ag.trades_3yr.toLocaleString()}}</td>
+                            <td style="color:${{col}};font-weight:800;">${{ag.win_rate}}%</td>
+                            <td style="color:var(--accent-green);">+$${{Number(ag.net_profit_001_lot).toFixed(2)}}</td>
+                            <td style="color:var(--accent-cyan);font-weight:700;">${{ag.profit_factor}}</td>
+                        </tr>`;
+                    }});
+                    agentsBody.innerHTML = rows;
+                }}
+            }}
 
             const wrEl = document.getElementById('lr-wr');
             const wlEl = document.getElementById('lr-wl');
