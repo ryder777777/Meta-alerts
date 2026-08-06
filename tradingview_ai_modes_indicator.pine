@@ -1,0 +1,271 @@
+//@version=6
+// ============================================================
+// META-ALERTS AI MODES INDICATOR — 1:5 RR | 50% Winrate
+// ============================================================
+// Ye INDICATOR hai (strategy nahi). AI daemon ka exact AB-Touch
+// POI-zone logic + saare modes jo 50% winrate achieve kar chuke hain.
+//
+// MODES (1:5 RR pe 50% winrate achievers):
+//   SUPER_LOOSE · SUPER_LOOSE_2 · Sw0.4_Wi0.8 · VeryTight
+//   AGGRESSIVE · ORIGINAL · Triple_Med · Sw0.6_Wi1.2
+//
+// Virtual trade engine + DASHBOARD (top-right):
+//   TOTAL / WINS / LOSSES / WIN RATE / NET PnL / RR
+// ============================================================
+
+indicator("Meta-Alerts AI Modes", shorttitle="MA-Modes", overlay=true, max_bars_back=600, max_lines_count=500)
+
+// ---------------- INPUTS ----------------
+grp_mode = "AI Mode (50% achievers)"
+mode_sel = input.string("SUPER_LOOSE", "Mode",
+     options=["SUPER_LOOSE","SUPER_LOOSE_2","Sw0.6_Wi1.2","Sw0.4_Wi0.8","ORIGINAL","VeryTight","Triple_Med","AGGRESSIVE"],
+     group=grp_mode)
+
+grp_sig = "Signal"
+ind_conf   = input.int(4, "Indicator confluence votes (0-14)", minval=0, maxval=14, group=grp_sig)
+use_trend  = input.bool(true, "Require trend-direction", group=grp_sig)
+
+grp_risk = "Risk:Reward"
+sl_mode    = input.string("ATR", "SL Mode", options=["ATR","Custom"], group=grp_risk)
+atr_len    = input.int(4, "ATR Length", minval=2, maxval=50, group=grp_risk)
+atr_mult   = input.float(1.0, "ATR Multiplier", step=0.1, group=grp_risk)
+custom_sl  = input.float(1.0, "Custom SL ($)", step=0.5, group=grp_risk)
+rr_ratio   = input.float(5.0, "RR Ratio (TP=SL x RR)", minval=0.5, step=0.5, group=grp_risk)
+
+grp_show = "Display"
+show_score = input.bool(true, "Show Confluence Score", group=grp_show)
+
+// ---------------- MODE PARAMS (secret_logic.py _params exact) ----------------
+// sw / wk / dp / tr per mode
+var float pSw = 0.3
+var float pWk = 0.5
+var float pDp = 3.0
+var int   pTr = 0
+if mode_sel == "Sw0.6_Wi1.2"
+    pSw := 0.6
+    pWk := 1.2
+    pDp := 5.0
+    pTr := 100
+else if mode_sel == "Sw0.4_Wi0.8"
+    pSw := 0.4
+    pWk := 0.8
+    pDp := 5.0
+    pTr := 100
+else if mode_sel == "ORIGINAL"
+    pSw := 1.0
+    pWk := 2.0
+    pDp := 8.0
+    pTr := 200
+else if mode_sel == "VeryTight"
+    pSw := 1.5
+    pWk := 2.5
+    pDp := 8.0
+    pTr := 200
+else if mode_sel == "Triple_Med"
+    pSw := 0.8
+    pWk := 1.5
+    pDp := 4.0
+    pTr := 100
+else if mode_sel == "AGGRESSIVE"
+    pSw := 0.3
+    pWk := 0.5
+    pDp := 4.0
+    pTr := 100
+// else SUPER_LOOSE / SUPER_LOOSE_2: defaults 0.3/0.5/3.0/0
+
+// ---------------- INDICATORS (closed-bar state [1] = no look-ahead) ----------------
+zl_ema   = ta.hma(close[1], 21)
+vwap_val = ta.vwap(hlc3)[1]
+aroonUp  = (25 + ta.highestbars(high[1], 25)) / 25 * 100.0
+aroonDn  = (25 + ta.lowestbars(low[1], 25))  / 25 * 100.0
+mom      = ta.change(close[1], 1)
+abs_mom  = math.abs(mom)
+tsi_val  = 100.0 * ta.ema(ta.ema(mom, 25), 13) / ta.ema(ta.ema(abs_mom, 25), 13)
+em13  = ta.ema(close[1], 13)
+em50  = ta.ema(close[1], 50)
+em100 = ta.ema(close[1], 100)
+em200 = ta.ema(close[1], 200)
+mfi_val = ta.mfi(hlc3[1], 14)
+cmf_len = 20
+mfv     = hlc3[1] * volume[1]
+cmf_chg = ta.change(hlc3[1], 1)
+mf_sign = cmf_chg > 0 ? mfv : cmf_chg < 0 ? -mfv : 0.0
+cmf_val = ta.sma(mf_sign, cmf_len) / ta.sma(volume[1], cmf_len)
+bull_power = high[1] - em13
+bear_power = low[1]  - em13
+cl_chg = ta.change(close[1], 1)
+obv_val = ta.cum(math.sign(cl_chg) * volume[1])
+force_val = ta.ema(volume[1] * cl_chg, 13)
+rsi_val   = ta.rsi(close[1], 14)
+stoch_val = ta.stoch(close[1], high[1], low[1], 14)
+wpr_high  = ta.highest(high[1], 14)
+wpr_low   = ta.lowest(low[1], 14)
+wpr_val   = (wpr_high - close[1]) / (wpr_high - wpr_low) * -100.0
+
+// ---------------- CONFLUENCE VOTES ----------------
+vote = 0.0
+vote += close[1] > zl_ema   ? 1 : close[1] < zl_ema   ? -1 : 0
+vote += close[1] > vwap_val ? 1 : close[1] < vwap_val ? -1 : 0
+vote += aroonUp > aroonDn   ? 1 : aroonUp < aroonDn   ? -1 : 0
+vote += tsi_val > 0         ? 1 : tsi_val < 0         ? -1 : 0
+vote += em50 > em100        ? 1 : em50 < em100        ? -1 : 0
+vote += mfi_val > 50        ? 1 : mfi_val < 50        ? -1 : 0
+vote += cmf_val > 0         ? 1 : cmf_val < 0         ? -1 : 0
+vote += bull_power > 0      ? 1 : bull_power < 0      ? -1 : 0
+vote += bear_power > 0      ? 1 : bear_power < 0      ? -1 : 0
+vote += obv_val > obv_val[10] ? 1 : obv_val < obv_val[10] ? -1 : 0
+vote += force_val > 0       ? 1 : force_val < 0       ? -1 : 0
+vote += rsi_val > 50        ? 1 : rsi_val < 50        ? -1 : 0
+vote += stoch_val > 50      ? 1 : stoch_val < 50      ? -1 : 0
+vote += wpr_val > -50       ? 1 : wpr_val < -50       ? -1 : 0
+
+// ---------------- TREND FILTER (closed bar) ----------------
+mediumUp = close[1] > em50 and close[1] > em100
+strictUp = close[1] > em100 and close[1] > em200
+mediumDn = close[1] < em50 and close[1] < em100
+strictDn = close[1] < em100 and close[1] < em200
+tk_buy  = pTr == 0 ? true : (pTr == 100 ? mediumUp : strictUp)
+tk_sell = pTr == 0 ? true : (pTr == 100 ? mediumDn : strictDn)
+
+// ---------------- AB-TOUCH POI ZONES (exact) ----------------
+o3 = open[3]
+h3 = high[3]
+l3 = low[3]
+c3 = close[3]
+c1v = close[1]
+h1v = high[1]
+l1v = low[1]
+c2v = close[2]
+l2v = low[2]
+h2v = high[2]
+
+bOB = (c3 < o3) and (c1v - c3 >= pDp) and (c1v > h3)
+sOB = (c3 > o3) and (c3 - c1v >= pDp) and (c1v < l3)
+bFG = l1v > h3
+sFG = h1v < l3
+
+var float bLo = na
+var float bHi = na
+var int   bTm = -100000
+var float rLo = na
+var float rHi = na
+var int   rTm = -100000
+
+if bOB
+    bLo := l3
+    bHi := h3
+    bTm := bar_index - 3
+if sOB
+    rLo := l3
+    rHi := h3
+    rTm := bar_index - 3
+if bFG
+    bLo := (l1v + h3) / 2.0
+    bHi := h3
+    bTm := bar_index - 3
+if sFG
+    rLo := l3
+    rHi := (h1v + l3) / 2.0
+    rTm := bar_index - 3
+
+if bar_index - bTm > 480
+    bLo := na
+    bHi := na
+if bar_index - rTm > 480
+    rLo := na
+    rHi := na
+
+bullSetup = not na(bLo) and (bar_index - bTm) >= 1 and c2v >= bLo and c2v <= bHi and (l2v - l1v) >= pSw and c1v >= l2v and (c1v - l1v) >= pWk
+bearSetup = not na(rLo) and (bar_index - rTm) >= 1 and c2v >= rLo and c2v <= rHi and (h1v - h2v) >= pSw and c1v <= h2v and (h1v - c1v) >= pWk
+
+// ---------------- FIRE (1-trade-per-zone) ----------------
+var int lastBuyTm = -100000
+var int lastSellTm = -100000
+fireBuy  = bullSetup and tk_buy and bTm != lastBuyTm and vote >= ind_conf
+fireSell = bearSetup and tk_sell and rTm != lastSellTm and -vote >= ind_conf
+if fireBuy
+    lastBuyTm := bTm
+if fireSell
+    lastSellTm := rTm
+
+// ---------------- VIRTUAL TRADE ENGINE (indicator ke andar) ----------------
+sl_disp = sl_mode == "ATR" ? ta.atr(atr_len) * atr_mult : custom_sl
+
+var int  posDir    = 0
+var float posEntry  = 0.0
+var float posSL     = 0.0
+var float posTP     = 0.0
+var int  totalTrades = 0
+var int  wins        = 0
+var int  losses      = 0
+var float netPnl     = 0.0
+
+bool slHit = false
+bool tpHit = false
+if posDir == 1
+    slHit := low <= posSL
+    tpHit := high >= posTP
+else if posDir == -1
+    slHit := high >= posSL
+    tpHit := low <= posTP
+
+if slHit or tpHit
+    totalTrades += 1
+    float tpnl = (posDir == 1 ? (tpHit ? posTP - posEntry : posSL - posEntry)
+                            : (tpHit ? posEntry - posTP : posEntry - posSL))
+    netPnl += tpnl
+    if tpnl > 0
+        wins += 1
+    else
+        losses += 1
+    posDir := 0
+    posEntry := 0.0
+    posSL := 0.0
+    posTP := 0.0
+
+if posDir == 0
+    if fireBuy
+        posDir    := 1
+        posEntry  := close
+        posSL     := close - sl_disp
+        posTP     := close + sl_disp * rr_ratio
+    else if fireSell
+        posDir    := -1
+        posEntry  := close
+        posSL     := close + sl_disp
+        posTP     := close - sl_disp * rr_ratio
+
+// ---------------- PLOTS ----------------
+plotshape(fireBuy,  "BUY",  shape.triangleup,   location.belowbar, color.new(#089981, 0), size=size.small)
+plotshape(fireSell, "SELL", shape.triangledown, location.abovebar, color.new(#f23645, 0), size=size.small)
+plot(posDir == 1 ? posSL : na, "Long SL", color.new(#f23645, 40), style=plot.style_linebr, linewidth=1)
+plot(posDir == 1 ? posTP : na, "Long TP", color.new(#089981, 40), style=plot.style_linebr, linewidth=1)
+plot(posDir == -1 ? posSL : na, "Short SL", color.new(#f23645, 40), style=plot.style_linebr, linewidth=1)
+plot(posDir == -1 ? posTP : na, "Short TP", color.new(#089981, 40), style=plot.style_linebr, linewidth=1)
+
+score = (vote + 14.0) / 28.0 * 100.0
+plot(show_score ? score : na, "Confluence", color.new(#00f2fe, 0), style=plot.style_area, linewidth=2, display=display.data_window)
+hline(50, "Neutral", color.new(#787b86, 60), hline.style_dotted)
+
+// ---------------- DASHBOARD (TOTAL / WINS / LOSSES / WINRATE / PNL / MODE) ----------------
+var table dash = table.new(position.top_right, 2, 7, bgcolor=color.new(#0b0e14, 90), border_color=color.new(#21262d, 0), border_width=1)
+if barstate.islast
+    wr = totalTrades > 0 ? wins / totalTrades * 100.0 : 0.0
+    table.cell(dash, 0, 0, "MODE", text_color=color.new(#00f2fe, 0), text_size=size.small)
+    table.cell(dash, 1, 0, mode_sel, text_color=color.white, text_size=size.small)
+    table.cell(dash, 0, 1, "TOTAL TRADES", text_color=color.new(#00f2fe, 0), text_size=size.small)
+    table.cell(dash, 1, 1, str.tostring(totalTrades), text_color=color.white, text_size=size.small)
+    table.cell(dash, 0, 2, "WINS", text_color=color.new(#089981, 0), text_size=size.small)
+    table.cell(dash, 1, 2, str.tostring(wins), text_color=color.white, text_size=size.small)
+    table.cell(dash, 0, 3, "LOSSES", text_color=color.new(#f23645, 0), text_size=size.small)
+    table.cell(dash, 1, 3, str.tostring(losses), text_color=color.white, text_size=size.small)
+    table.cell(dash, 0, 4, "WIN RATE", text_color=color.new(#ffb703, 0), text_size=size.small)
+    table.cell(dash, 1, 4, str.tostring(wr, "#.#") + "%", text_color=color.white, text_size=size.small)
+    table.cell(dash, 0, 5, "NET PnL ($)", text_color=color.new(#00f2fe, 0), text_size=size.small)
+    table.cell(dash, 1, 5, str.tostring(netPnl, "#.##"), text_color=netPnl >= 0 ? color.new(#089981, 0) : color.new(#f23645, 0), text_size=size.small)
+    table.cell(dash, 0, 6, "RR / SL", text_color=color.gray, text_size=size.tiny)
+    table.cell(dash, 1, 6, str.tostring(rr_ratio, "#.#") + " / " + str.tostring(sl_disp, "#.##"), text_color=color.white, text_size=size.tiny)
+
+// ---------------- ALERTS ----------------
+alertcondition(fireBuy,  "Meta-Alerts BUY",  "Meta-Alerts BUY signal (AI confluence high)")
+alertcondition(fireSell, "Meta-Alerts SELL", "Meta-Alerts SELL signal (AI confluence low)")

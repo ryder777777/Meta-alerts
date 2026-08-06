@@ -1,0 +1,172 @@
+//@version=6
+// ============================================================
+// META-ALERTS AI STRATEGY — TradingView (AI Agent backtest replica)
+// ============================================================
+// Ye AI agents jaisa hi selective signal deta hai + live trade
+// dashboard (total trades / wins / losses / winrate / PnL).
+//
+// LOGIC (AI daemon jaisa):
+//   - AB-Touch setup: pullback setup + trend-direction
+//   - Confluence score: 14 indicators ka agreement (0-100)
+//   - Entry tabhi jab confluence high + trend direction ho
+//   - SL = ATR(4)x1 ya custom | TP = SL x RR (1:4)
+//
+// Dashboard table (top-right): Total Trades, Wins, Losses,
+// Winrate, Net PnL — live update hota hai.
+// ============================================================
+
+strategy("Meta-Alerts AI Strategy", shorttitle="MA-AI", overlay=true,
+     margin_long=100, margin_short=100,
+     initial_capital=10000,
+     default_qty_type=strategy.percent_of_equity, default_qty_value=10,
+     commission_type=strategy.commission.cash_per_order, commission_value=0.0,
+     calc_on_every_tick=false)
+
+// ---------------- INPUTS ----------------
+grp_signal = "Signal"
+conf_min      = input.int(6,   "Confluence min votes (0-14)", minval=0, maxval=14, group=grp_signal)
+use_trend     = input.bool(true, "Require trend-direction", group=grp_signal)
+
+grp_sl = "Risk / Reward"
+sl_mode       = input.string("ATR", "SL Mode", options=["ATR", "Custom"], group=grp_sl)
+atr_len       = input.int(4, "ATR Length", minval=2, maxval=50, group=grp_sl)
+atr_mult      = input.float(1.0, "ATR Multiplier", step=0.1, group=grp_sl)
+custom_sl     = input.float(1.0, "Custom SL ($)", step=0.5, group=grp_sl)
+rr_ratio      = input.float(4.0, "RR Ratio (TP=SL x RR)", minval=0.5, step=0.5, group=grp_sl)
+
+grp_show = "Display"
+show_score    = input.bool(true, "Show Confluence Score", group=grp_show)
+
+// ---------------- INDICATORS (manual — har version pe chalta hai) ----------------
+zl_ema   = ta.hma(close, 21)                          // Zero-Lag proxy
+vwap_val = ta.vwap(hlc3)
+
+aroon_len = 25
+aroonUp  = (aroon_len + ta.highestbars(high, aroon_len)) / aroon_len * 100.0
+aroonDn  = (aroon_len + ta.lowestbars(low, aroon_len))  / aroon_len * 100.0
+
+tsi_long = 25
+tsi_short = 13
+mom      = ta.change(close, 1)
+abs_mom  = math.abs(mom)
+tsi_val  = 100.0 * ta.ema(ta.ema(mom, tsi_long), tsi_short) / ta.ema(ta.ema(abs_mom, tsi_long), tsi_short)
+
+em13  = ta.ema(close, 13)
+em50  = ta.ema(close, 50)
+em100 = ta.ema(close, 100)
+em200 = ta.ema(close, 200)
+
+mfi_val = ta.mfi(hlc3, 14)
+
+cmf_len = 20
+mfv     = hlc3 * volume
+mf_sign = ta.change(hlc3, 1) > 0 ? mfv : ta.change(hlc3, 1) < 0 ? -mfv : 0.0
+cmf_val = ta.sma(mf_sign, cmf_len) / ta.sma(volume, cmf_len)
+
+bull_power = high - em13
+bear_power = low  - em13
+
+obv_val = ta.cum(math.sign(ta.change(close, 1)) * volume)
+force_val = ta.ema(volume * ta.change(close, 1), 13)
+
+rsi_val   = ta.rsi(close, 14)
+stoch_val = ta.stoch(close, high, low, 14)
+wpr_len   = 14
+wpr_high  = ta.highest(high, wpr_len)
+wpr_low   = ta.lowest(low, wpr_len)
+wpr_val   = (wpr_high - close) / (wpr_high - wpr_low) * -100.0
+
+// ---------------- AB-TOUCH SETUP (pullback + zone, AI daemon jaisa) ----------------
+// Bullish pullback: uptrend me chhota red candle, price phir upar
+pSw = 0.15
+pWk = 0.3
+bull_setup = low < low[1] and close > open and close > em50 and low[1] - low >= pSw
+bear_setup = high > high[1] and close < open and close < em50 and high - high[1] >= pSw
+
+// ---------------- CONFLUENCE VOTES (0-14) ----------------
+vote = 0.0
+vote += close > zl_ema   ? 1 : close < zl_ema   ? -1 : 0
+vote += close > vwap_val ? 1 : close < vwap_val ? -1 : 0
+vote += aroonUp > aroonDn ? 1 : aroonUp < aroonDn ? -1 : 0
+vote += tsi_val > 0      ? 1 : tsi_val < 0      ? -1 : 0
+vote += em50 > em100     ? 1 : em50 < em100     ? -1 : 0
+vote += mfi_val > 50     ? 1 : mfi_val < 50     ? -1 : 0
+vote += cmf_val > 0      ? 1 : cmf_val < 0      ? -1 : 0
+vote += bull_power > 0   ? 1 : bull_power < 0   ? -1 : 0
+vote += bear_power > 0   ? 1 : bear_power < 0   ? -1 : 0
+vote += obv_val > obv_val[10] ? 1 : obv_val < obv_val[10] ? -1 : 0
+vote += force_val > 0    ? 1 : force_val < 0    ? -1 : 0
+vote += rsi_val > 50     ? 1 : rsi_val < 50     ? -1 : 0
+vote += stoch_val > 50   ? 1 : stoch_val < 50   ? -1 : 0
+vote += wpr_val > -50    ? 1 : wpr_val < -50    ? -1 : 0
+
+// ---------------- SIGNAL (selective — high confluence + setup + trend) ----------------
+sl_disp = sl_mode == "ATR" ? ta.atr(atr_len) * atr_mult : custom_sl
+
+buy_sig  = bull_setup and vote >= conf_min
+sell_sig = bear_setup and vote <= -conf_min
+if use_trend
+    buy_sig  := buy_sig  and close > em100
+    sell_sig := sell_sig and close < em100
+
+// Agar pichla bar signal diya tha toh dobara nahi (1 trade per signal)
+buy_ent  = buy_sig  and not buy_sig[1]
+sell_ent = sell_sig and not sell_sig[1]
+
+// ---------------- ENTRY / EXIT (SL + TP = SL x RR) ----------------
+if buy_ent and strategy.position_size == 0
+    strategy.entry("Long", strategy.long)
+    strategy.exit("Long X", "Long",
+         stop=close - sl_disp,
+         limit=close + sl_disp * rr_ratio)
+
+if sell_ent and strategy.position_size == 0
+    strategy.entry("Short", strategy.short)
+    strategy.exit("Short X", "Short",
+         stop=close + sl_disp,
+         limit=close - sl_disp * rr_ratio)
+
+// ---------------- PLOTS ----------------
+plotshape(buy_ent,  "BUY",  shape.triangleup,   location.belowbar, color.new(#089981, 0), size=size.small)
+plotshape(sell_ent, "SELL", shape.triangledown, location.abovebar, color.new(#f23645, 0), size=size.small)
+
+// SL / TP display
+plot(strategy.position_size != 0 ? close - sl_disp : na, "SL", color.new(#f23645, 40), style=plot.style_linebr, linewidth=1)
+plot(strategy.position_size != 0 ? close + sl_disp * rr_ratio : na, "TP", color.new(#089981, 40), style=plot.style_linebr, linewidth=1)
+
+// Confluence score sub-pane
+score = (vote + 14.0) / 28.0 * 100.0
+plot(show_score ? score : na, "Confluence", color.new(#00f2fe, 0), style=plot.style_area, linewidth=2, display=display.data_window)
+hline(50, "Neutral", color.new(#787b86, 60), hline.style_dotted)
+
+// ---------------- DASHBOARD TABLE (total / wins / losses / winrate / pnl) ----------------
+var table dash = table.new(position.top_right, 2, 6, bgcolor=color.new(#0b0e14, 90), border_color=color.new(#21262d, 0), border_width=1)
+
+if barstate.islast
+    total    = strategy.closedtrades
+    wins     = strategy.wintrades
+    losses   = strategy.losstrades
+    winrate  = total > 0 ? wins / total * 100.0 : 0.0
+    netpnl   = strategy.netprofit
+
+    table.cell(dash, 0, 0, "TOTAL TRADES", text_color=color.new(#00f2fe, 0), text_size=size.small)
+    table.cell(dash, 1, 0, str.tostring(total), text_color=color.white, text_size=size.small)
+
+    table.cell(dash, 0, 1, "WINS", text_color=color.new(#089981, 0), text_size=size.small)
+    table.cell(dash, 1, 1, str.tostring(wins), text_color=color.white, text_size=size.small)
+
+    table.cell(dash, 0, 2, "LOSSES", text_color=color.new(#f23645, 0), text_size=size.small)
+    table.cell(dash, 1, 2, str.tostring(losses), text_color=color.white, text_size=size.small)
+
+    table.cell(dash, 0, 3, "WIN RATE", text_color=color.new(#ffb703, 0), text_size=size.small)
+    table.cell(dash, 1, 3, str.tostring(winrate, "#.#") + "%", text_color=color.white, text_size=size.small)
+
+    table.cell(dash, 0, 4, "NET PnL ($)", text_color=color.new(#00f2fe, 0), text_size=size.small)
+    table.cell(dash, 1, 4, str.tostring(netpnl, "#.##"), text_color=netpnl >= 0 ? color.new(#089981, 0) : color.new(#f23645, 0), text_size=size.small)
+
+    table.cell(dash, 0, 5, "RR / SL", text_color=color.gray, text_size=size.tiny)
+    table.cell(dash, 1, 5, str.tostring(rr_ratio, "#.#") + " / " + str.tostring(sl_disp, "#.##"), text_color=color.white, text_size=size.tiny)
+
+// ---------------- ALERTS ----------------
+alertcondition(buy_ent,  "Meta-Alerts BUY",  "Meta-Alerts BUY signal (AI confluence)")
+alertcondition(sell_ent, "Meta-Alerts SELL", "Meta-Alerts SELL signal (AI confluence)")
