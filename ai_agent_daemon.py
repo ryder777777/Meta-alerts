@@ -15,6 +15,8 @@ import pandas as pd
 import numpy as np
 from numba import njit
 
+import indicators_lib as IL
+
 DATA_DIR = os.environ.get("DATA_DIR", "/home/user/uploads")
 MEMORY_FILE = os.path.join(os.path.dirname(__file__), "strategy_memory.json")
 
@@ -59,10 +61,10 @@ DEFAULT_TOP_N = int(os.environ.get("AI_TOP_N", "30"))
 
 # Load Dataset in memory
 DATASET = None
-OPENS = HIGHS = LOWS = CLOSES = HOURS = None
+OPENS = HIGHS = LOWS = CLOSES = HOURS = VOLUMES = None
 
 def load_dataset():
-    global DATASET, OPENS, HIGHS, LOWS, CLOSES, HOURS
+    global DATASET, OPENS, HIGHS, LOWS, CLOSES, HOURS, VOLUMES
     if DATASET is not None:
         return
 
@@ -99,8 +101,115 @@ def load_dataset():
     LOWS = DATASET["LOW"].values.astype(np.float64)
     CLOSES = DATASET["CLOSE"].values.astype(np.float64)
     HOURS = DATASET["DATETIME"].dt.hour.values.astype(np.int32)
+    # Volume proxy: TICKVOL (real volume) > VOL > 1 fallback
+    if "TICKVOL" in DATASET.columns:
+        VOLUMES = DATASET["TICKVOL"].fillna(1.0).values.astype(np.float64)
+    elif "VOL" in DATASET.columns:
+        VOLUMES = np.maximum(DATASET["VOL"].fillna(1.0).values.astype(np.float64), 1.0)
+    else:
+        VOLUMES = np.ones(len(CLOSES), dtype=np.float64)
     
     print(f"✅ Dataset Loaded: {len(CLOSES):,} M1 Candles (2023 - 2026)")
+
+
+# ---------------------------------------------------------------------------
+# Indicator vote engine
+# Each "vote source" gives +1 (bull), -1 (bear), 0 (neutral/not-ready) per bar.
+# Precomputed once at load so per-agent cost stays low. Agents enable a subset
+# and set a confirmation threshold.
+# ---------------------------------------------------------------------------
+VOTES = None
+N_SOURCES = 16
+
+
+@njit
+def _vote(arr, i):
+    return arr[i]
+
+
+@njit
+def _b(v):
+    if np.isnan(v):
+        return 0.0
+    return 1.0 if v > 0 else (-1.0 if v < 0 else 0.0)
+
+
+def compute_indicator_votes():
+    """Return VOTES: 2D float array [n, N_SOURCES], each col a vote source."""
+    global VOTES
+    n = len(CLOSES)
+    if n <= 0:
+        return
+    O, H, L, C, V = OPENS, HIGHS, LOWS, CLOSES, VOLUMES
+
+    rsi14 = IL.rsi(C, 14)
+    stoch14 = IL.stochastic(H, L, C, 14, 3)
+    wpr14 = IL.williams_r(H, L, C, 14)
+    mfi14 = IL.mfi(H, L, C, V, 14)
+    cmf20 = IL.cmf(H, L, C, V, 20)
+    force13 = IL.force_index(C, V, 13)
+    ema13 = IL.ema_series(C, 13)
+    bull13 = IL.elder_bull_power(H, ema13, 13)
+    bear13 = IL.elder_bear_power(L, ema13, 13)
+    obv_arr = IL.obv(C, V)
+    vwap20 = IL.vwap(H, L, C, V, 20)
+    aroon_up, aroon_dn = IL.aroon(H, L, 25)
+    tsi_arr = IL.tsi(C, 25, 13)
+    ulti = IL.ultimate_oscillator(H, L, C)
+    bop_arr = IL.bop(O, H, L, C)
+    vp, vn = IL.vortex(H, L, C, 14)
+    zlema = IL.zero_lag_ema(C, 21)
+
+    VOTES = np.zeros((n, N_SOURCES), dtype=np.float64)
+    for i in range(n):
+        # 0 RSI
+        VOTES[i, 0] = _b(rsi14[i] - 50.0)
+        # 1 Stoch
+        VOTES[i, 1] = _b(stoch14[i] - 50.0)
+        # 2 W%R
+        VOTES[i, 2] = _b(wpr14[i] + 50.0)
+        # 3 MFI
+        VOTES[i, 3] = _b(mfi14[i] - 50.0)
+        # 4 CMF
+        VOTES[i, 4] = _b(cmf20[i])
+        # 5 Force
+        VOTES[i, 5] = _b(force13[i])
+        # 6 Elder Bull
+        VOTES[i, 6] = _b(bull13[i])
+        # 7 Elder Bear (bear power>0 = bullish)
+        VOTES[i, 7] = _b(bear13[i])
+        # 8 OBV slope (10-bar)
+        if i >= 10 and not np.isnan(obv_arr[i]) and not np.isnan(obv_arr[i - 10]):
+            VOTES[i, 8] = 1.0 if obv_arr[i] > obv_arr[i - 10] else (-1.0 if obv_arr[i] < obv_arr[i - 10] else 0.0)
+        # 9 VWAP
+        if not np.isnan(vwap20[i]):
+            VOTES[i, 9] = 1.0 if C[i] > vwap20[i] else -1.0
+        # 10 Aroon
+        if not np.isnan(aroon_up[i]) and not np.isnan(aroon_dn[i]):
+            VOTES[i, 10] = 1.0 if aroon_up[i] > aroon_dn[i] else (-1.0 if aroon_up[i] < aroon_dn[i] else 0.0)
+        # 11 TSI
+        VOTES[i, 11] = _b(tsi_arr[i])
+        # 12 Ultimate
+        VOTES[i, 12] = _b(ulti[i] - 50.0)
+        # 13 BOP
+        VOTES[i, 13] = _b(bop_arr[i])
+        # 14 Vortex
+        if not np.isnan(vp[i]) and not np.isnan(vn[i]):
+            VOTES[i, 14] = 1.0 if vp[i] > vn[i] else (-1.0 if vp[i] < vn[i] else 0.0)
+        # 15 ZLEMA
+        if not np.isnan(zlema[i]):
+            VOTES[i, 15] = 1.0 if C[i] > zlema[i] else -1.0
+
+    print(f"📊 Indicator votes computed: {N_SOURCES} sources x {n:,} candles")
+
+
+@njit
+def _net_votes(VOTES, i, enabled, n_enabled):
+    net = 0.0
+    for b in range(N_SOURCES):
+        if enabled & (1 << b):
+            net += VOTES[i, b]
+    return net
 
 
 @njit
@@ -123,7 +232,8 @@ def simulate_agent_genome(
     opens, highs, lows, closes, hours,
     mode_code, fixed_sl, tp_dollars,
     pSw, pWk, pDp, pTr,
-    use_session_filter=False, sp_comp=0.14, fixed_lot=0.01
+    use_session_filter=False, sp_comp=0.14, fixed_lot=0.01,
+    VOTES_arr=None, enabled=0, ind_conf=0, n_enabled=0
 ):
     n = len(closes)
 
@@ -137,7 +247,7 @@ def simulate_agent_genome(
     bLo = bHi = rLo = rHi = -1.0
     bTm = rTm = -100000
 
-    max_trades = 60000
+    max_trades = 200000
     pnls = np.zeros(max_trades, dtype=np.float64)
     trade_count = 0
 
@@ -195,10 +305,22 @@ def simulate_agent_genome(
         tk_buy = True if pTr == 0 else (mediumUp_c1 if pTr == 100 else strictUp_c1)
         tk_sell = True if pTr == 0 else (mediumDn_c1 if pTr == 100 else strictDn_c1)
 
-        fireBuy = bullSetup and tk_buy and (last_buy_c1 != c1)
-        fireSell = bearSetup and tk_sell and (last_sell_c1 != c1)
+        # ---- Indicator confirmation ----
+        # net = enabled bullish votes - enabled bearish votes (indicator agreement).
+        # 1) Base AB-Touch setup confirmation: buy -> net >= ind_conf (quality).
+        # 2) Controlled confluence: indicators STRONGLY flip bullish (net crosses
+        #    into near-total agreement) => extra discrete entry (more trades).
+        net = 0.0
+        if n_enabled > 0 and VOTES_arr is not None:
+            net = _net_votes(VOTES_arr, i, enabled, n_enabled)
+        eff_conf = ind_conf if n_enabled > 0 else 0.0
+
+        fireBuy = bullSetup and tk_buy and (last_buy_c1 != c1) and (net >= eff_conf)
+        fireSell = bearSetup and tk_sell and (last_sell_c1 != c1) and (-net >= eff_conf)
 
         # ENTRY ALWAYS ON C0 CANDLE OPEN FIRST TICK
+        if trade_count >= max_trades:
+            break
         if fireBuy:
             last_buy_c1 = c1
             aE = opens[i] + sp_comp
@@ -337,7 +459,22 @@ EVALUATED_GENOMES = set()
 
 def _genome_key(agent):
     return (agent["mode"], agent["sl"], agent["tp"],
-            agent["psw"], agent["pwk"], agent["pdp"], agent["ptr"], agent["sess"])
+            agent["psw"], agent["pwk"], agent["pdp"], agent["ptr"], agent["sess"],
+            agent.get("enabled", 0), agent.get("ind_conf", 0))
+
+
+def _count_enabled(en):
+    return bin(en).count("1")
+
+
+def _random_enabled():
+    en = 0
+    for b in range(N_SOURCES):
+        if random.random() < 0.45:
+            en |= (1 << b)
+    if en == 0:
+        en = 1
+    return en
 
 
 def _seed_memory_from_disk():
@@ -396,8 +533,14 @@ def run_continuous_ai_evolution_loop():
             print(f"⚠️  Dataset load error ({exc}) — retry in 20s")
             time.sleep(20)
 
+    # Precompute indicator votes once (data-dependent only)
+    try:
+        compute_indicator_votes()
+    except Exception as exc:  # noqa: BLE001
+        print(f"⚠️  Indicator compute failed ({exc}) — base strategy only")
+
     # Prewarm JIT
-    _ = simulate_agent_genome(OPENS[:1000], HIGHS[:1000], LOWS[:1000], CLOSES[:1000], HOURS[:1000], 0, 1.5, 3.0, 0.3, 0.5, 3.0, 0, False, 0.14, 0.01)
+    _ = simulate_agent_genome(OPENS[:1000], HIGHS[:1000], LOWS[:1000], CLOSES[:1000], HOURS[:1000], 0, 1.5, 3.0, 0.3, 0.5, 3.0, 0, False, 0.14, 0.01, VOTES, 0, 0, 0)
 
     modes = ["VeryTight", "ORIGINAL", "SUPER_LOOSE", "AGGRESSIVE", "Sw0.6_Wi1.2", "Sw0.4_Wi0.8", "Triple_Med", "SUPER_LOOSE_2"]
     mode_map = {m: idx for idx, m in enumerate(modes)}
@@ -413,9 +556,9 @@ def run_continuous_ai_evolution_loop():
     tp_options = [3.0, 4.0, 4.5, 6.0]
     # LOOSER params (benchmark SUPER_LOOSE jaisi) -> zyada signals/trades.
     # Benchmark champion modes: sw=0.3, wk=0.5, dp=3.0 -> 6000+ trades.
-    psw_options = [0.05, 0.1, 0.15, 0.2, 0.3, 0.4, 0.6]
-    pwk_options = [0.15, 0.2, 0.3, 0.4, 0.5, 0.8, 1.0]
-    pdp_options = [1.0, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0]
+    psw_options = [0.1, 0.15, 0.2, 0.3, 0.4, 0.5, 0.6]
+    pwk_options = [0.2, 0.3, 0.4, 0.5, 0.6, 0.8, 1.0]
+    pdp_options = [2.0, 2.5, 3.0, 4.0, 5.0]
     ptr_options = [0, 100, 200]
     sess_options = [False, True]
 
@@ -455,6 +598,7 @@ def run_continuous_ai_evolution_loop():
             tp = random.choice(tp_options); psw = random.choice(psw_options)
             pwk = random.choice(pwk_options); pdp = random.choice(pdp_options)
             ptr = random.choice(ptr_options); sess = random.choice(sess_options)
+            enabled = _random_enabled(); ind_conf = random.choice([0, 1, 2, 3, 4, 5, 6])
 
             if r < 0.35 and len(best_list) >= 2:
                 # CROSSOVER: 2 tournament parents combine (advance evolution)
@@ -470,6 +614,10 @@ def run_continuous_ai_evolution_loop():
                     m = child["mode"]; sl = child["sl"]; tp = child["tp"]
                     psw = child["psw"]; pwk = child["pwk"]; pdp = child["pdp"]
                     ptr = child["ptr"]; sess = child["sess"]
+                    # indicator genes from random parent
+                    pe = p1 if random.random() < 0.5 else p2
+                    enabled = pe.get("enabled", _random_enabled())
+                    ind_conf = pe.get("ind_conf", random.choice([0, 1, 2, 3]))
                     # kuch mutation
                     if random.random() < 0.2: sl = random.choice(sl_options)
                     if random.random() < 0.2: tp = random.choice(tp_options)
@@ -479,11 +627,15 @@ def run_continuous_ai_evolution_loop():
                     if random.random() < 0.2: ptr = random.choice(ptr_options)
                     if random.random() < 0.1: sess = random.choice(sess_options)
                     if random.random() < 0.05: m = random.choice(modes)
+                    if random.random() < 0.3: enabled = _random_enabled()
+                    if random.random() < 0.3: ind_conf = random.choice([0, 1, 2, 3, 4, 5, 6])
             elif r < 0.75 and best_list:
                 # MUTATION: 1 tournament parent se thoda badlo (fine-tune)
                 p = _tournament()
                 m = p["mode"]; sl = p["sl"]; tp = p["tp"]; psw = p["psw"]
                 pwk = p["pwk"]; pdp = p["pdp"]; ptr = p["ptr"]; sess = p["sess"]
+                enabled = p.get("enabled", _random_enabled())
+                ind_conf = p.get("ind_conf", random.choice([0, 1, 2, 3]))
                 if random.random() < 0.25: sl = random.choice(sl_options)
                 if random.random() < 0.25: tp = random.choice(tp_options)
                 if random.random() < 0.25: psw = random.choice(psw_options)
@@ -492,6 +644,8 @@ def run_continuous_ai_evolution_loop():
                 if random.random() < 0.25: ptr = random.choice(ptr_options)
                 if random.random() < 0.15: sess = random.choice(sess_options)
                 if random.random() < 0.08: m = random.choice(modes)
+                if random.random() < 0.3: enabled = _random_enabled()
+                if random.random() < 0.3: ind_conf = random.choice([0, 1, 2, 3, 4, 5, 6])
             else:
                 # FRESH random exploration (30%) — diversity
                 pass
@@ -500,7 +654,9 @@ def run_continuous_ai_evolution_loop():
                 "mode": m,
                 "mode_code": mode_map[m],
                 "sl": sl, "tp": tp, "psw": psw, "pwk": pwk,
-                "pdp": pdp, "ptr": ptr, "sess": sess
+                "pdp": pdp, "ptr": ptr, "sess": sess,
+                "enabled": enabled, "ind_conf": ind_conf,
+                "n_enabled": _count_enabled(enabled)
             }
             key = _genome_key(g)
             # TRUE DEDUP: explored combo skip — naya unique hi test karo
@@ -515,7 +671,9 @@ def run_continuous_ai_evolution_loop():
                 OPENS, HIGHS, LOWS, CLOSES, HOURS,
                 agent["mode_code"], agent["sl"], agent["tp"],
                 agent["psw"], agent["pwk"], agent["pdp"], agent["ptr"],
-                agent["sess"], 0.14, 0.01
+                agent["sess"], 0.14, 0.01,
+                VOTES, agent.get("enabled", 0), agent.get("ind_conf", 0),
+                agent.get("n_enabled", 0)
             )
             eval_res = evaluate_agent(pnls)
             if eval_res["trades"] >= 10 and eval_res["net_profit"] > 0:
@@ -546,7 +704,9 @@ def run_continuous_ai_evolution_loop():
                 "net_profit_010_lot": round(ag["net_profit"] * 10, 2),
                 "profit_factor": ag["profit_factor"],
                 "max_dd_001_lot": ag["max_dd"],
-                "target_score": ag.get("target_score", 0.0)
+                "target_score": ag.get("target_score", 0.0),
+                "indicators": ag.get("n_enabled", 0),
+                "ind_conf": ag.get("ind_conf", 0)
             })
 
         top_champ = top_n_formatted[0] if top_n_formatted else {
