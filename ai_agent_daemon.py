@@ -538,7 +538,7 @@ def _seed_memory_from_disk():
             mode_codes = {"VeryTight": 0, "ORIGINAL": 1, "SUPER_LOOSE": 2,
                           "AGGRESSIVE": 3, "Sw0.6_Wi1.2": 4, "Sw0.4_Wi0.8": 5,
                           "Triple_Med": 6, "SUPER_LOOSE_2": 7}
-            key = f"{mode}_{ag.get('sl_setting','')}_{ag.get('tp_exit','')}_{ag.get('net_profit_001_lot','')}_{mode}"
+            key = f"{mode}|{ag.get('sl',1.5)}|{ag.get('tp',0)}|{ag.get('psw',0.3)}|{ag.get('pwk',0.5)}|{ag.get('pdp',3.0)}|{ag.get('ptr',0)}|{ag.get('sess',False)}|{ag.get('enabled',0)}|{ag.get('ind_conf',0)}|{ag.get('sl_mode',0)}|{ag.get('tp_ratio',2)}"
             GLOBAL_AI_MEMORY[key] = {
                 "mode": mode,
                 "mode_code": mode_codes.get(mode, 1),
@@ -594,7 +594,33 @@ def run_continuous_ai_evolution_loop():
         "Agent Apex-Alpha", "Agent Titan-One", "Agent Nexus-Core", "Agent Orion-Prime",
         "Agent Vector-V5", "Agent Hyperion-X", "Agent Cyber-Quantum", "Agent Astra-7",
         "Agent Phoenix-9", "Agent Matrix-01", "Agent Spectre-X", "Agent Chronos-3",
-        "Agent Horizon-V", "Agent Quantum-Z", "Agent Valkyrie-1"
+        "Agent Horizon-V", "Agent Quantum-Z", "Agent Valkyrie-1",
+        "Agent Nebula-4", "Agent Solar-5", "Agent Eclipse-10", "Agent Vanguard-3",
+        "Agent Sentinel-2", "Agent Zenith-6", "Agent Orbit-X", "Agent Apex-Pro",
+        "Agent Nova-7", "Agent Pulse-12", "Agent Storm-8", "Agent Falcon-9",
+        "Agent Comet-11", "Agent Lyra-5", "Agent Vega-13", "Agent Sirius-2",
+        "Agent Draco-6", "Agent Andromeda-4", "Agent Polaris-8", "Agent Cassiopeia-3",
+        "Agent Hydra-9", "Agent Orion-5", "Agent Pegasus-7", "Agent Phoenix-11",
+        "Agent Helios-4", "Agent Atlas-6", "Agent Titan-12", "Agent Apollo-8",
+        "Agent Ares-3", "Agent Zeus-5", "Agent Hera-7", "Agent Hermes-2",
+        "Agent Athena-9", "Agent Artemis-6", "Agent Hades-4", "Agent Poseidon-8",
+        "Agent Cronus-5", "Agent Rhea-3", "Agent Selene-7", "Agent Eos-2",
+        "Agent Iris-6", "Agent Nike-4", "Agent Themis-9", "Agent Tyche-5",
+        "Agent Iris-12", "Agent Aether-3", "Agent Chaos-8", "Agent Erebus-6",
+        "Agent Gaia-4", "Agent Nyx-7", "Agent Oceanus-5", "Agent Tethys-3",
+        "Agent Hyperion-9", "Agent Iapetus-4", "Agent Mnemosyne-6", "Agent Theia-8",
+        "Agent Prometheus-2", "Agent Epimetheus-5", "Agent Helios-11", "Agent Selene-13",
+        "Agent Eos-14", "Agent Astraea-3", "Agent Dike-6", "Agent Eunomia-4",
+        "Agent Eirene-7", "Agent Euporia-5", "Agent Hegemone-8", "Agent Hestia-3",
+        "Agent Iris-16", "Agent Klymene-6", "Agent Leto-4", "Agent Maia-9",
+        "Agent Nemesis-5", "Agent Okyrhoe-7", "Agent Perseus-3", "Agent Phoebe-8",
+        "Agent Rhode-6", "Agent Taygete-4", "Agent Zephyr-9", "Agent Boreas-5",
+        "Agent Notos-7", "Agent Eurus-3", "Agent Aquilo-8", "Agent Auster-6",
+        "Agent Favor-4", "Agent Honor-9", "Agent Concordia-5", "Agent Felicitas-7",
+        "Agent Fortuna-3", "Agent Libertas-8", "Agent Salus-6", "Agent Spes-4",
+        "Agent Victoria-9", "Agent Virtus-5", "Agent Abundantia-7", "Agent Aequitas-3",
+        "Agent Bonus-Eventus-6", "Agent Clementia-8", "Agent Copia-4", "Agent Iustitia-9",
+        "Agent Pietas-5", "Agent Providentia-7", "Agent Securitas-3", "Agent Spes-Aeterna-8"
     ]
 
     # TP: RR ratio (tp_ratio). 0=C0 close, 1=1:1, 2=1:2, 3=1:3, 4=1:4, 5=1:5.
@@ -738,7 +764,11 @@ def run_continuous_ai_evolution_loop():
             )
             eval_res = evaluate_agent(pnls)
             if eval_res["trades"] >= 10 and eval_res["net_profit"] > 0:
-                key = f"{agent['mode']}_{agent['sl']}_{agent['tp']}_{agent['pdp']}_{agent['sess']}"
+                # FULL unique genome key (mode+params+indicators+RR+SL mode) —
+                # isse har unique agent apni jagah store hota hai, overwrite nahi.
+                # Pehle sirf (mode,sl,tp,pdp,sess) tha -> alag configs same slot me
+                # overwrite hokar SAME result dete the. Ab every agent unique.
+                key = f"{agent['mode']}|{agent['sl']}|{agent['tp']}|{agent['psw']}|{agent['pwk']}|{agent['pdp']}|{agent['ptr']}|{agent['sess']}|{agent.get('enabled',0)}|{agent.get('ind_conf',0)}|{agent.get('sl_mode',0)}|{agent.get('tp_ratio',2)}"
                 if key not in GLOBAL_AI_MEMORY or eval_res["fitness"] > GLOBAL_AI_MEMORY[key]["fitness"]:
                     GLOBAL_AI_MEMORY[key] = {**agent, **eval_res}
 
