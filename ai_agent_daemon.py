@@ -263,19 +263,23 @@ def evaluate_agent(pnls):
     target_score = _target_score(win_rate, pf)
 
     # ---- ADVANCED MULTI-OBJECTIVE FITNESS ----
-    # Benchmark achieve karne ke liye humein QUALITY + VOLUME dono chahiye:
-    #   - win_rate aur profit_factor ko zyada weight (quality)
-    #   - par trades bhi zaroori (volume) taaki statistically strong ho
-    # Multi-objective: quality_score * volume_score * robustness_score
+    # Best trading strategy ke liye QUALITY sabse zaroori (win_rate + PF),
+    # trades sirf APPROX benchmark honi chahiye (na forced zyada, na bhot kam).
     #
-    # Quality: WR target ke paas => exponential boost. PF bhi.
+    # Quality: win_rate ko sabse zyada weight (ye improve hona chahiye),
+    # PF secondary. WR target ke paas => strong reward.
     wr_proximity = max(0.0, win_rate / max(TARGET_WR, 1.0))   # 0..1+ (1.0 = target WR)
-    pf_proximity = min(pf / max(TARGET_PF, 0.01), 5.0)        # capped
-    quality_score = (wr_proximity ** 2.0) * (1.0 + 0.6 * pf_proximity)
+    quality_score = (wr_proximity ** 2.0) * (1.0 + 0.35 * pf)  # WR primary, PF helps
 
-    # Volume: zyada trades = statistically zyada solid (log-scaled, capped)
-    vol_ratio = min(n_trades / 2000.0, 1.0)                   # 2000+ trades = full volume credit
-    volume_score = 0.3 + 0.7 * (vol_ratio ** 0.7)
+    # Volume: APPROX benchmark band. Too-few trades (<300) weak, ideal 600-3500,
+    # too-many (>4000) ko bhi over-incentive NAHI — sirf band ke andar full credit.
+    # (benchmark modes: SUPER_LOOSE~6384, AGGRESSIVE~2003, Sw0.6~944, etc.)
+    if n_trades < 300:
+        volume_score = 0.2 + 0.6 * (n_trades / 300.0)         # poor, tapering
+    elif n_trades <= 4000:
+        volume_score = 1.0                                     # ideal approx range
+    else:
+        volume_score = max(0.7, 1.0 - (n_trades - 4000) / 6000.0)  # zyada pe thoda kam
 
     # Robustness: max drawdown penalty (safe agents aage)
     dd_penalty = 1.0 / (1.0 + max_dd / 300.0)
