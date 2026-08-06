@@ -763,7 +763,8 @@ def run_continuous_ai_evolution_loop():
                 "max_dd_001_lot": ag["max_dd"],
                 "target_score": ag.get("target_score", 0.0),
                 "indicators": ag.get("n_enabled", 0),
-                "ind_conf": ag.get("ind_conf", 0)
+                "ind_conf": ag.get("ind_conf", 0),
+                "enabled_mask": ag.get("enabled", 0)
             })
 
         top_champ = top_n_formatted[0] if top_n_formatted else {
