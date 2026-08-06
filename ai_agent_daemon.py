@@ -263,7 +263,7 @@ def simulate_agent_genome(
     pSw, pWk, pDp, pTr,
     use_session_filter=False, sp_comp=0.14, fixed_lot=0.01,
     VOTES_arr=None, enabled=0, ind_conf=0, n_enabled=0,
-    atr_arr=None, sl_mode=0
+    atr_arr=None, sl_mode=0, tp_ratio=0.0
 ):
     n = len(closes)
 
@@ -360,7 +360,8 @@ def simulate_agent_genome(
             # SL: ATR(4)*1.0 (dynamic) ya custom dollar
             sl_eff = (atr_arr[i - 1] if (sl_mode == 1 and atr_arr is not None and i >= 1 and not np.isnan(atr_arr[i - 1])) else fixed_sl)
             aS = aE - sl_eff
-            aTP = aE + tp_dollars if tp_dollars > 0 else 0.0
+            # TP: tp_ratio>0 => fixed RR (TP = SL*ratio); tp_ratio==0 => C0 close
+            aTP = (aE + sl_eff * tp_ratio) if tp_ratio > 0 else (aE + tp_dollars if tp_dollars > 0 else 0.0)
 
             hitSL = lows[i] <= aS
             hitTP = (highs[i] >= aTP) if tp_dollars > 0 else False
@@ -368,7 +369,7 @@ def simulate_agent_genome(
             if hitSL and not hitTP:
                 pnl_pts = -sl_eff
             elif hitTP:
-                pnl_pts = tp_dollars
+                pnl_pts = sl_eff * tp_ratio if tp_ratio > 0 else tp_dollars
             else:
                 pnl_pts = closes[i] - aE # C0 Candle Close Exit
 
@@ -380,7 +381,7 @@ def simulate_agent_genome(
             aE = opens[i] - sp_comp
             sl_eff = (atr_arr[i - 1] if (sl_mode == 1 and atr_arr is not None and i >= 1 and not np.isnan(atr_arr[i - 1])) else fixed_sl)
             aS = aE + sl_eff
-            aTP = aE - tp_dollars if tp_dollars > 0 else 0.0
+            aTP = (aE - sl_eff * tp_ratio) if tp_ratio > 0 else (aE - tp_dollars if tp_dollars > 0 else 0.0)
 
             hitSL = highs[i] >= aS
             hitTP = (lows[i] <= aTP) if tp_dollars > 0 else False
@@ -388,7 +389,7 @@ def simulate_agent_genome(
             if hitSL and not hitTP:
                 pnl_pts = -sl_eff
             elif hitTP:
-                pnl_pts = tp_dollars
+                pnl_pts = sl_eff * tp_ratio if tp_ratio > 0 else tp_dollars
             else:
                 pnl_pts = aE - closes[i] # C0 Candle Close Exit
 
@@ -498,7 +499,7 @@ def _genome_key(agent):
     return (agent["mode"], agent["sl"], agent["tp"],
             agent["psw"], agent["pwk"], agent["pdp"], agent["ptr"], agent["sess"],
             agent.get("enabled", 0), agent.get("ind_conf", 0),
-            agent.get("sl_mode", 0))
+            agent.get("sl_mode", 0), agent.get("tp_ratio", 2))
 
 
 def _count_enabled(en):
@@ -578,7 +579,7 @@ def run_continuous_ai_evolution_loop():
         print(f"⚠️  Indicator compute failed ({exc}) — base strategy only")
 
     # Prewarm JIT
-    _ = simulate_agent_genome(OPENS[:1000], HIGHS[:1000], LOWS[:1000], CLOSES[:1000], HOURS[:1000], 0, 1.5, 3.0, 0.3, 0.5, 3.0, 0, False, 0.14, 0.01, VOTES, 0, 0, 0, ATR4, 0)
+    _ = simulate_agent_genome(OPENS[:1000], HIGHS[:1000], LOWS[:1000], CLOSES[:1000], HOURS[:1000], 0, 1.5, 3.0, 0.3, 0.5, 3.0, 0, False, 0.14, 0.01, VOTES, 0, 0, 0, ATR4, 0, 2)
 
     modes = ["VeryTight", "ORIGINAL", "SUPER_LOOSE", "AGGRESSIVE", "Sw0.6_Wi1.2", "Sw0.4_Wi0.8", "Triple_Med", "SUPER_LOOSE_2"]
     mode_map = {m: idx for idx, m in enumerate(modes)}
@@ -590,10 +591,11 @@ def run_continuous_ai_evolution_loop():
         "Agent Horizon-V", "Agent Quantum-Z", "Agent Valkyrie-1"
     ]
 
-    # TP target = C0 candle CLOSE (fixed TP nahi, user requirement).
+    # TP: RR ratio (tp_ratio). 0=C0 close, 1=1:1, 2=1:2, 3=1:3, 4=1:4, 5=1:5.
     # SL options: custom dollars ($0.50, $1, $1.5, $2) ya ATR(4)*1.0 (sl_mode=1).
     sl_options = [0.5, 1.0, 1.5, 2.0]
-    tp_options = [0.0]   # 0.0 => C0 Candle Close exit
+    tp_options = [0.0]   # legacy (unused when tp_ratio set)
+    tp_ratio_options = [1, 2, 3, 4, 5]   # 1:1 .. 1:5 risk:reward
     sl_mode_options = [0, 1]   # 0=custom $, 1=ATR(4)*1.0
     # LOOSER params (benchmark SUPER_LOOSE jaisi) -> zyada signals/trades.
     # Benchmark champion modes: sw=0.3, wk=0.5, dp=3.0 -> 6000+ trades.
@@ -641,6 +643,7 @@ def run_continuous_ai_evolution_loop():
             ptr = random.choice(ptr_options); sess = random.choice(sess_options)
             enabled = _random_enabled(); ind_conf = random.choice([0, 1, 2, 3, 4, 5, 6])
             sl_mode = random.choice(sl_mode_options)
+            tp_ratio = random.choice(tp_ratio_options)
 
             if r < 0.35 and len(best_list) >= 2:
                 # CROSSOVER: 2 tournament parents combine (advance evolution)
@@ -661,6 +664,7 @@ def run_continuous_ai_evolution_loop():
                     enabled = pe.get("enabled", _random_enabled())
                     ind_conf = pe.get("ind_conf", random.choice([0, 1, 2, 3]))
                     sl_mode = pe.get("sl_mode", random.choice(sl_mode_options))
+                    tp_ratio = pe.get("tp_ratio", random.choice(tp_ratio_options))
                     # kuch mutation
                     if random.random() < 0.2: sl = random.choice(sl_options)
                     if random.random() < 0.2: tp = random.choice(tp_options)
@@ -680,7 +684,9 @@ def run_continuous_ai_evolution_loop():
                 enabled = p.get("enabled", _random_enabled())
                 ind_conf = p.get("ind_conf", random.choice([0, 1, 2, 3]))
                 sl_mode = p.get("sl_mode", random.choice(sl_mode_options))
+                tp_ratio = p.get("tp_ratio", random.choice(tp_ratio_options))
                 if random.random() < 0.2: sl_mode = random.choice(sl_mode_options)
+                if random.random() < 0.3: tp_ratio = random.choice(tp_ratio_options)
                 if random.random() < 0.25: sl = random.choice(sl_options)
                 if random.random() < 0.25: tp = random.choice(tp_options)
                 if random.random() < 0.25: psw = random.choice(psw_options)
@@ -702,7 +708,8 @@ def run_continuous_ai_evolution_loop():
                 "pdp": pdp, "ptr": ptr, "sess": sess,
                 "enabled": enabled, "ind_conf": ind_conf,
                 "n_enabled": _count_enabled(enabled),
-                "sl_mode": sl_mode
+                "sl_mode": sl_mode,
+                "tp_ratio": tp_ratio
             }
             key = _genome_key(g)
             # TRUE DEDUP: explored combo skip — naya unique hi test karo
@@ -720,7 +727,8 @@ def run_continuous_ai_evolution_loop():
                 agent["sess"], 0.14, 0.01,
                 VOTES, agent.get("enabled", 0), agent.get("ind_conf", 0),
                 agent.get("n_enabled", 0),
-                ATR4, agent.get("sl_mode", 0)
+                ATR4, agent.get("sl_mode", 0),
+                agent.get("tp_ratio", 2)
             )
             eval_res = evaluate_agent(pnls)
             if eval_res["trades"] >= 10 and eval_res["net_profit"] > 0:
@@ -738,7 +746,8 @@ def run_continuous_ai_evolution_loop():
         top_n_formatted = []
         for rank_i, ag in enumerate(sorted_memory[:top_n], start=1):
             name = agent_names_pool[(rank_i - 1) % len(agent_names_pool)]
-            tp_desc = "C0 Candle Close"   # TP target hamesha C0 close
+            r = ag.get("tp_ratio", 0)
+            tp_desc = "C0 Candle Close" if r == 0 else f"1:{r} RR"
             sl_desc = f"ATR(4)x1" if ag.get("sl_mode", 0) == 1 else f"Fixed SL ${ag['sl']}"
             top_n_formatted.append({
                 "rank": rank_i,
