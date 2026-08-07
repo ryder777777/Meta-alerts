@@ -399,7 +399,7 @@ def simulate_agent_genome(
     return pnls[:trade_count]
 
 
-def evaluate_agent(pnls):
+def evaluate_agent(pnls, tp_ratio_val=2):
     n_trades = len(pnls)
     if n_trades < 10:
         return {"fitness": -999, "trades": n_trades, "win_rate": 0, "net_profit": 0, "profit_factor": 0, "max_dd": 0}
@@ -431,7 +431,10 @@ def evaluate_agent(pnls):
     # Agents ko reward tabhi jab DONO aache ho: win_rate 50%+ ke paas AUR PF 1.3+.
     wr_ratio = win_rate / 50.0                    # 50% = 1.0, 55% = 1.1
     pf_ratio = max(pf, 0.5)                       # PF 1.0+ = good
-    quality_score = (wr_ratio ** 2.0) * (pf_ratio ** 1.8)
+    # RR reward — zyada RR = zyada score (1:1->1, 1:3->1.5, 1:5->1.8 capped)
+    rr_ratio_val = max(1.0, min(3.0, 1.0 + (tp_ratio_val - 1) * 0.2))
+    # COMBINED: WR * PF * RR — teeno ek saath optimize
+    quality_score = (wr_ratio ** 2.0) * (pf_ratio ** 1.8) * rr_ratio_val
 
     # Volume: TRADES band reward — target ~1000-3000 trades (user requirement).
     # <300 = weak, 500-4000 = full credit (sweet spot ~1000-3000).
@@ -778,7 +781,7 @@ def run_continuous_ai_evolution_loop():
                 ATR4, agent.get("sl_mode", 0),
                 agent.get("tp_ratio", 2)
             )
-            eval_res = evaluate_agent(pnls)
+            eval_res = evaluate_agent(pnls, agent.get("tp_ratio", 2))
             if eval_res["trades"] >= 10 and eval_res["net_profit"] > 0:
                 # FULL unique genome key (mode+params+indicators+RR+SL mode) —
                 # isse har unique agent apni jagah store hota hai, overwrite nahi.
