@@ -16,6 +16,7 @@ import numpy as np
 from numba import njit
 
 import indicators_lib as IL
+import smc_engine as SMC
 
 DATA_DIR = os.environ.get("DATA_DIR", "/home/user/uploads")
 MEMORY_FILE = os.path.join(os.path.dirname(__file__), "strategy_memory.json")
@@ -122,6 +123,9 @@ def load_dataset():
 # ---------------------------------------------------------------------------
 VOTES = None
 ATR4 = None   # ATR(4) series for ATR-based SL
+SMC_BUY = None
+SMC_SELL = None
+SMC_SL = None
 # Sab indicator + unke MULTIPLE parameter settings (variants). Har variant ek
 # source column hota hai — agents kisi bhi subset enable kar sakte hain, isliye
 # every indicator setting/parameter explore hota hai.
@@ -263,7 +267,8 @@ def simulate_agent_genome(
     pSw, pWk, pDp, pTr,
     use_session_filter=False, sp_comp=0.14, fixed_lot=0.01,
     VOTES_arr=None, enabled=0, ind_conf=0, n_enabled=0,
-    atr_arr=None, sl_mode=0, tp_ratio=0.0
+    atr_arr=None, sl_mode=0, tp_ratio=0.0,
+    smc_buy=None, smc_sell=None, smc_sl=None, use_smc=0
 ):
     n = len(closes)
 
@@ -348,8 +353,19 @@ def simulate_agent_genome(
             net = _net_votes(VOTES_arr, i - 1, enabled, n_enabled)
         eff_conf = ind_conf if n_enabled > 0 else 0.0
 
-        fireBuy = bullSetup and tk_buy and (last_buy_c1 != c1) and (net >= eff_conf)
-        fireSell = bearSetup and tk_sell and (last_sell_c1 != c1) and (-net >= eff_conf)
+        # ---- SMC pure-price-action entry ----
+        # Agar agent SMC mode use karta hai (use_smc=1), SMC signal (order block/
+        # FVG + structure) direct entry deta hai — lagging indicator bias ke bina.
+        smc_fire_buy = False
+        smc_fire_sell = False
+        if use_smc == 1 and smc_buy is not None and i < len(smc_buy):
+            if smc_buy[i] > 0.5 and last_buy_c1 != c1:
+                smc_fire_buy = True
+            if smc_sell[i] > 0.5 and last_sell_c1 != c1:
+                smc_fire_sell = True
+
+        fireBuy = (bullSetup and tk_buy and (last_buy_c1 != c1) and (net >= eff_conf)) or smc_fire_buy
+        fireSell = (bearSetup and tk_sell and (last_sell_c1 != c1) and (-net >= eff_conf)) or smc_fire_sell
 
         # ENTRY ALWAYS ON C0 CANDLE OPEN FIRST TICK
         if trade_count >= max_trades:
@@ -357,8 +373,11 @@ def simulate_agent_genome(
         if fireBuy:
             last_buy_c1 = c1
             aE = opens[i] + sp_comp
-            # SL: ATR(4)*1.0 (dynamic) ya custom dollar
-            sl_eff = (atr_arr[i - 1] if (sl_mode == 1 and atr_arr is not None and i >= 1 and not np.isnan(atr_arr[i - 1])) else fixed_sl)
+            # SL: SMC structure-SL (chhota, use_smc) > ATR(4)*1.0 > custom dollar
+            if use_smc == 1 and smc_sl is not None and i < len(smc_sl) and smc_sl[i] > 0:
+                sl_eff = max(smc_sl[i], 0.05)
+            else:
+                sl_eff = (atr_arr[i - 1] if (sl_mode == 1 and atr_arr is not None and i >= 1 and not np.isnan(atr_arr[i - 1])) else fixed_sl)
             aS = aE - sl_eff
             # TP: tp_ratio>0 => fixed RR (TP = SL*ratio); tp_ratio==0 => C0 close
             aTP = (aE + sl_eff * tp_ratio) if tp_ratio > 0 else (aE + tp_dollars if tp_dollars > 0 else 0.0)
@@ -379,7 +398,10 @@ def simulate_agent_genome(
         elif fireSell:
             last_sell_c1 = c1
             aE = opens[i] - sp_comp
-            sl_eff = (atr_arr[i - 1] if (sl_mode == 1 and atr_arr is not None and i >= 1 and not np.isnan(atr_arr[i - 1])) else fixed_sl)
+            if use_smc == 1 and smc_sl is not None and i < len(smc_sl) and smc_sl[i] > 0:
+                sl_eff = max(smc_sl[i], 0.05)
+            else:
+                sl_eff = (atr_arr[i - 1] if (sl_mode == 1 and atr_arr is not None and i >= 1 and not np.isnan(atr_arr[i - 1])) else fixed_sl)
             aS = aE + sl_eff
             aTP = (aE - sl_eff * tp_ratio) if tp_ratio > 0 else (aE - tp_dollars if tp_dollars > 0 else 0.0)
 
@@ -521,7 +543,8 @@ def _genome_key(agent):
     return (agent["mode"], agent["sl"], agent["tp"],
             agent["psw"], agent["pwk"], agent["pdp"], agent["ptr"], agent["sess"],
             agent.get("enabled", 0), agent.get("ind_conf", 0),
-            agent.get("sl_mode", 0), agent.get("tp_ratio", 2))
+            agent.get("sl_mode", 0), agent.get("tp_ratio", 2),
+            agent.get("use_smc", 0))
 
 
 def _count_enabled(en):
@@ -600,8 +623,17 @@ def run_continuous_ai_evolution_loop():
     except Exception as exc:  # noqa: BLE001
         print(f"⚠️  Indicator compute failed ({exc}) — base strategy only")
 
+    # Precompute SMC pure-price-action signals once
+    try:
+        global SMC_BUY, SMC_SELL, SMC_SL
+        SMC_BUY, SMC_SELL, SMC_SL = SMC.compute_smc_signals(
+            OPENS, HIGHS, LOWS, CLOSES)
+        print(f"📈 SMC signals computed: {int(SMC_BUY.sum())} buy / {int(SMC_SELL.sum())} sell")
+    except Exception as exc:  # noqa: BLE001
+        print(f"⚠️  SMC compute failed ({exc})")
+
     # Prewarm JIT
-    _ = simulate_agent_genome(OPENS[:1000], HIGHS[:1000], LOWS[:1000], CLOSES[:1000], HOURS[:1000], 0, 1.5, 3.0, 0.3, 0.5, 3.0, 0, False, 0.14, 0.01, VOTES, 0, 0, 0, ATR4, 0, 2)
+    _ = simulate_agent_genome(OPENS[:1000], HIGHS[:1000], LOWS[:1000], CLOSES[:1000], HOURS[:1000], 0, 1.5, 3.0, 0.3, 0.5, 3.0, 0, False, 0.14, 0.01, VOTES, 0, 0, 0, ATR4, 0, 2, SMC_BUY, SMC_SELL, SMC_SL, 0)
 
     modes = ["VeryTight", "ORIGINAL", "SUPER_LOOSE", "AGGRESSIVE", "Sw0.6_Wi1.2", "Sw0.4_Wi0.8", "Triple_Med", "SUPER_LOOSE_2"]
     mode_map = {m: idx for idx, m in enumerate(modes)}
@@ -645,6 +677,7 @@ def run_continuous_ai_evolution_loop():
     tp_options = [0.0]   # legacy (unused when tp_ratio set)
     tp_ratio_options = [1, 2, 3, 4, 5]   # 1:1 .. 1:5 risk:reward
     sl_mode_options = [0, 1]   # 0=custom $, 1=ATR(4)*1.0
+    use_smc_options = [0, 1]   # 0=old setup, 1=SMC pure price action
     # LOOSER params (benchmark SUPER_LOOSE jaisi) -> zyada signals/trades.
     # Benchmark champion modes: sw=0.3, wk=0.5, dp=3.0 -> 6000+ trades.
     psw_options = [0.05, 0.1, 0.15, 0.2, 0.3, 0.4, 0.5]
@@ -691,6 +724,7 @@ def run_continuous_ai_evolution_loop():
             ptr = random.choice(ptr_options); sess = random.choice(sess_options)
             enabled = _random_enabled(); ind_conf = random.choice([0, 1, 2, 3])
             sl_mode = random.choice(sl_mode_options)
+            use_smc = random.choice(use_smc_options)
             tp_ratio = random.choice(tp_ratio_options)
 
             if r < 0.35 and len(best_list) >= 2:
@@ -712,6 +746,7 @@ def run_continuous_ai_evolution_loop():
                     enabled = pe.get("enabled", _random_enabled())
                     ind_conf = pe.get("ind_conf", random.choice([0, 1, 2, 3]))
                     sl_mode = pe.get("sl_mode", random.choice(sl_mode_options))
+                    use_smc = pe.get("use_smc", random.choice(use_smc_options))
                     tp_ratio = pe.get("tp_ratio", random.choice(tp_ratio_options))
                     # kuch mutation
                     if random.random() < 0.2: sl = random.choice(sl_options)
@@ -733,7 +768,9 @@ def run_continuous_ai_evolution_loop():
                 ind_conf = p.get("ind_conf", random.choice([0, 1, 2, 3]))
                 sl_mode = p.get("sl_mode", random.choice(sl_mode_options))
                 tp_ratio = p.get("tp_ratio", random.choice(tp_ratio_options))
+                use_smc = p.get("use_smc", random.choice(use_smc_options))
                 if random.random() < 0.2: sl_mode = random.choice(sl_mode_options)
+                if random.random() < 0.3: use_smc = random.choice(use_smc_options)
                 if random.random() < 0.3: tp_ratio = random.choice(tp_ratio_options)
                 if random.random() < 0.25: sl = random.choice(sl_options)
                 if random.random() < 0.25: tp = random.choice(tp_options)
@@ -757,7 +794,8 @@ def run_continuous_ai_evolution_loop():
                 "enabled": enabled, "ind_conf": ind_conf,
                 "n_enabled": _count_enabled(enabled),
                 "sl_mode": sl_mode,
-                "tp_ratio": tp_ratio
+                "tp_ratio": tp_ratio,
+                "use_smc": use_smc
             }
             key = _genome_key(g)
             # TRUE DEDUP: explored combo skip — naya unique hi test karo
@@ -776,7 +814,8 @@ def run_continuous_ai_evolution_loop():
                 VOTES, agent.get("enabled", 0), agent.get("ind_conf", 0),
                 agent.get("n_enabled", 0),
                 ATR4, agent.get("sl_mode", 0),
-                agent.get("tp_ratio", 2)
+                agent.get("tp_ratio", 2),
+                SMC_BUY, SMC_SELL, SMC_SL, agent.get("use_smc", 0)
             )
             eval_res = evaluate_agent(pnls, agent.get("tp_ratio", 2))
             if eval_res["trades"] >= 10 and eval_res["net_profit"] > 0:
