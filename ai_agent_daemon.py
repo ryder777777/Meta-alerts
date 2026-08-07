@@ -708,6 +708,9 @@ def run_continuous_ai_evolution_loop():
         # Batch generate N UNIQUE AI Agent Genomes (dedup guarantee)
         batch_tasks = []
         seen_this_gen = set()
+        smc_made = 0          # is gen me kitne SMC agents bane
+        old_made = 0          # is gen me kitne purane agents bane
+        half = max(1, agents_per_gen // 2)
 
         def _tournament(k=4):
             """Tournament selection: random k me se best — ek parent."""
@@ -786,6 +789,15 @@ def run_continuous_ai_evolution_loop():
                 # FRESH random exploration (30%) — diversity
                 pass
 
+            # ---- 50/50 SPLIT: aadhe SMC (1:5, 50%+ target), aadhe purane (1:3/1:4/1:5) ----
+            # SMC pool ka aadha quota bharne tak use_smc=1, uske baad purane.
+            if smc_made < half:
+                use_smc = 1
+                tp_ratio = 5          # SMC -> 1:5 RR
+            else:
+                use_smc = 0
+                tp_ratio = random.choice([3, 4, 5])   # purane -> 1:3/1:4/1:5
+
             g = {
                 "mode": m,
                 "mode_code": mode_map[m],
@@ -804,6 +816,10 @@ def run_continuous_ai_evolution_loop():
             EVALUATED_GENOMES.add(key)
             seen_this_gen.add(key)
             batch_tasks.append(g)
+            if use_smc == 1:
+                smc_made += 1
+            else:
+                old_made += 1
 
         for agent in batch_tasks:
             pnls = simulate_agent_genome(
@@ -855,7 +871,8 @@ def run_continuous_ai_evolution_loop():
                 "target_score": ag.get("target_score", 0.0),
                 "indicators": ag.get("n_enabled", 0),
                 "ind_conf": ag.get("ind_conf", 0),
-                "enabled_mask": ag.get("enabled", 0)
+                "enabled_mask": ag.get("enabled", 0),
+                "use_smc": ag.get("use_smc", 0)
             })
 
         top_champ = top_n_formatted[0] if top_n_formatted else {
