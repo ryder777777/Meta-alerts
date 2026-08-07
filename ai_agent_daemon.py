@@ -436,27 +436,24 @@ def evaluate_agent(pnls, tp_ratio_val=2):
     # COMBINED: WR * PF * RR — teeno ek saath optimize
     quality_score = (wr_ratio ** 2.0) * (pf_ratio ** 1.8) * rr_ratio_val
 
-    # Volume: TRADES band reward — target ~1000-3000 trades (user requirement).
-    # <300 = weak, 500-4000 = full credit (sweet spot ~1000-3000).
-    # Quality (WR*PF) alag se hota hai, isliye dono milke zyada trades + achi
-    # quality dono optimize karte hain.
-    if n_trades < 300:
-        volume_score = 0.3 + 0.4 * (n_trades / 300.0)
-    elif n_trades <= 4500:
-        volume_score = 1.0
+    # Volume: NEUTRAL (sirf bahut kam trades penalty, warna 1.0) — isse high-WR
+    # configs dominate karti hain, zyada-trades-low-WR ko bias nahi.
+    if n_trades < 200:
+        volume_score = 0.5 + 0.5 * (n_trades / 200.0)
     else:
-        volume_score = max(0.7, 1.0 - (n_trades - 4500) / 5000.0)
+        volume_score = 1.0
 
     # Robustness: max drawdown penalty (safe agents aage)
     dd_penalty = 1.0 / (1.0 + max_dd / 300.0)
 
-    # 50%+ winrate bonus — target nudge (moderate)
+    # STRONG 50%+ winrate bonus — 1:5 RR pe 50%+ wapas laane ke liye.
+    # High-WR agents ko bada boost, evolution 50%+ configs chunega.
     if win_rate >= 55.0:
-        wr50_bonus = 1.8
+        wr50_bonus = 2.5
     elif win_rate >= 50.0:
-        wr50_bonus = 1.4
+        wr50_bonus = 2.0
     else:
-        wr50_bonus = 0.4 + win_rate / 100.0
+        wr50_bonus = 0.3 + win_rate / 100.0
 
     fitness = net_profit * quality_score * volume_score * dd_penalty * wr50_bonus
 
