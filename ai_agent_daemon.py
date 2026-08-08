@@ -480,15 +480,16 @@ def evaluate_agent(pnls, tp_ratio_val=2):
     else:
         wr50_bonus = 0.3 + win_rate / 100.0
 
-    # ===== HIGH-VOLUME + HIGH-WINRATE COMBO BONUS =====
-    # User requirement: 1500+ trades agents ko BHI 50%+ winrate laana hai.
-    # Agar agent ke paas DONO ho (n_trades>=1000 AUR win_rate>=50) toh bada bonus.
-    # Ye high-volume agents ko 50%+ winrate achieve karne ke liye push karta hai.
+    # ===== HIGH-VOLUME + HIGH-WINRATE MEGA BONUS (MAX SPEED) =====
+    # User requirement: 1500+ trades + 50%+ winrate = BADA exponential boost.
+    # Ye high-volume agents ko 50%+ winrate achieve karne ke liye har generation
+    # strongly push karta hai — jo dono rakhta hai wo sabse upar dominate karega.
     combo_bonus = 1.0
     if n_trades >= 1500 and win_rate >= 50.0:
-        combo_bonus = 2.0      # 1500+ trades AUR 50%+ winrate -> double fitness
+        # exponential: 1500+ trades AUR 50%+ winrate -> massive multiplier
+        combo_bonus = 1000.0 * (1.0 + (win_rate - 50.0) / 10.0) * (1.0 + (n_trades - 1500) / 5000.0)
     elif n_trades >= 1000 and win_rate >= 48.0:
-        combo_bonus = 1.5
+        combo_bonus = 50.0 * (1.0 + (win_rate - 48.0) / 10.0)
 
     fitness = net_profit * quality_score * volume_score * dd_penalty * wr50_bonus * combo_bonus
 
