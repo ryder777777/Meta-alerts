@@ -458,12 +458,15 @@ def evaluate_agent(pnls, tp_ratio_val=2):
     # COMBINED: WR * PF * RR — teeno ek saath optimize
     quality_score = (wr_ratio ** 2.0) * (pf_ratio ** 1.8) * rr_ratio_val
 
-    # Volume: NEUTRAL (sirf bahut kam trades penalty, warna 1.0) — isse high-WR
-    # configs dominate karti hain, zyada-trades-low-WR ko bias nahi.
-    if n_trades < 200:
-        volume_score = 0.5 + 0.5 * (n_trades / 200.0)
-    else:
+    # Volume: TRADE SIZE reward — target 1000-1500 trades (user requirement).
+    # <300 weak, 500-1800 full credit (sweet spot 1000-1500). Winrate bonus
+    # alag se hai, isliye trades + winrate dono optimize hote hain.
+    if n_trades < 300:
+        volume_score = 0.3 + 0.4 * (n_trades / 300.0)
+    elif n_trades <= 2000:
         volume_score = 1.0
+    else:
+        volume_score = max(0.7, 1.0 - (n_trades - 2000) / 3000.0)
 
     # Robustness: max drawdown penalty (safe agents aage)
     dd_penalty = 1.0 / (1.0 + max_dd / 300.0)
@@ -708,9 +711,7 @@ def run_continuous_ai_evolution_loop():
         # Batch generate N UNIQUE AI Agent Genomes (dedup guarantee)
         batch_tasks = []
         seen_this_gen = set()
-        ppa_made = 0          # is gen me kitne PPA agents bane
         old_made = 0          # is gen me kitne purane agents bane
-        half = max(1, agents_per_gen // 2)
 
         def _tournament(k=4):
             """Tournament selection: random k me se best — ek parent."""
@@ -789,14 +790,10 @@ def run_continuous_ai_evolution_loop():
                 # FRESH random exploration (30%) — diversity
                 pass
 
-            # ---- 50/50 SPLIT: aadhe PPA (1:5, 50%+ target), aadhe purane (1:3/1:4/1:5) ----
-            # PPA pool ka aadha quota bharne tak use_ppa=1, uske baad purane.
-            if ppa_made < half:
-                use_ppa = 1
-                tp_ratio = 5          # PPA -> 1:5 RR
-            else:
-                use_ppa = 0
-                tp_ratio = random.choice([3, 4, 5])   # purane -> 1:3/1:4/1:5
+            # ---- PURANE AB-TOUCH AGENTS ONLY (1:5 RR, 50%+ winrate target) ----
+            # User requirement: purane 50%+ wale agents + trade size 1000-1500.
+            use_ppa = 0
+            tp_ratio = 5          # 1:5 RR hamesha
 
             g = {
                 "mode": m,
@@ -816,10 +813,7 @@ def run_continuous_ai_evolution_loop():
             EVALUATED_GENOMES.add(key)
             seen_this_gen.add(key)
             batch_tasks.append(g)
-            if use_ppa == 1:
-                ppa_made += 1
-            else:
-                old_made += 1
+            old_made += 1
 
         for agent in batch_tasks:
             pnls = simulate_agent_genome(
