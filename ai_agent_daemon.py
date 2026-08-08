@@ -463,10 +463,10 @@ def evaluate_agent(pnls, tp_ratio_val=2):
     # alag se hai, isliye trades + winrate dono optimize hote hain.
     if n_trades < 300:
         volume_score = 0.3 + 0.4 * (n_trades / 300.0)
-    elif n_trades <= 2000:
-        volume_score = 1.0
+    elif n_trades <= 3000:
+        volume_score = 1.0       # 300-3000 full credit (1500+ target me)
     else:
-        volume_score = max(0.7, 1.0 - (n_trades - 2000) / 3000.0)
+        volume_score = max(0.7, 1.0 - (n_trades - 3000) / 4000.0)
 
     # Robustness: max drawdown penalty (safe agents aage)
     dd_penalty = 1.0 / (1.0 + max_dd / 300.0)
@@ -480,7 +480,17 @@ def evaluate_agent(pnls, tp_ratio_val=2):
     else:
         wr50_bonus = 0.3 + win_rate / 100.0
 
-    fitness = net_profit * quality_score * volume_score * dd_penalty * wr50_bonus
+    # ===== HIGH-VOLUME + HIGH-WINRATE COMBO BONUS =====
+    # User requirement: 1500+ trades agents ko BHI 50%+ winrate laana hai.
+    # Agar agent ke paas DONO ho (n_trades>=1000 AUR win_rate>=50) toh bada bonus.
+    # Ye high-volume agents ko 50%+ winrate achieve karne ke liye push karta hai.
+    combo_bonus = 1.0
+    if n_trades >= 1500 and win_rate >= 50.0:
+        combo_bonus = 2.0      # 1500+ trades AUR 50%+ winrate -> double fitness
+    elif n_trades >= 1000 and win_rate >= 48.0:
+        combo_bonus = 1.5
+
+    fitness = net_profit * quality_score * volume_score * dd_penalty * wr50_bonus * combo_bonus
 
     # ===== 65%+ WINRATE JACKPOT BONUS =====
     # Agent jo 65%+ winrate achieve karta hai usse BADA fitness bonus (1000) —
